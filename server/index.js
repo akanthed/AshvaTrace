@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const { generateScenario, computeAnalytics, fmtIST, mean, N, DT, START, TOOL_CHANGE, DRIFT, INSPECT, LO, HI } = require("./src/synthetic");
+const { investigateWithGemini, chatWithGemini, triageWithGemma, GEMINI_MODEL, GEMMA_MODEL } = require("./src/ai");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -122,18 +123,27 @@ const MACH_META = {
   "CNC-06": { type: "healthy", tool: "T-20", batch: "MB-2212", incident: null },
 };
 
-app.post("/api/investigate", (req, res) => {
+app.post("/api/investigate", async (req, res) => {
   const { machine } = req.body || {};
   if (!machine) return res.status(400).json({ error: "machine required" });
 
   const meta = MACH_META[machine];
   if (!meta) return res.status(404).json({ error: `Unknown machine: ${machine}` });
 
-  const hypotheses = getHypotheses(meta.type, machine, meta);
   const evidence = getEvidence(meta.type, machine, meta);
+  let hypotheses;
+  let aiSource = "mock";
 
-  auditLog.push([new Date().toTimeString().slice(0, 5), `Investigation run for ${machine} (mock AI, type: ${meta.type})`]);
-  res.json({ hypotheses, evidence, sop: SOP, machine, type: meta.type });
+  try {
+    hypotheses = await investigateWithGemini(machine, meta.type, evidence, meta);
+    aiSource = `gemini (${GEMINI_MODEL})`;
+  } catch (err) {
+    console.warn(`Gemini investigate failed, falling back to mock: ${err.message}`);
+    hypotheses = getHypotheses(meta.type, machine, meta);
+  }
+
+  auditLog.push([new Date().toTimeString().slice(0, 5), `Investigation run for ${machine} (${aiSource}, type: ${meta.type})`]);
+  res.json({ hypotheses, evidence, sop: SOP, machine, type: meta.type, aiSource });
 });
 
 function getHypotheses(type, machineId, meta) {
@@ -192,19 +202,30 @@ function getEvidence(type, machineId, meta) {
   };
 }
 
-app.post("/api/chat", (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { question, machine } = req.body || {};
+  if (!question) return res.status(400).json({ error: "question required" });
+
   const meta = MACH_META[machine] || MACH_META["CNC-03"];
-  const { tool, batch } = meta;
+  const evidence = getEvidence(meta.type, machine, meta);
+  let answer;
+  let aiSource = "mock";
 
-  const answers = {
-    "Why did power rise?": `Power stayed above expected from ${fmtIST(detect, START)} (EV-01). Vibration rose in the same window (EV-02). Higher cutting force from a worn edge would explain both, but this is not confirmed. Next check: SOP-102 §3`,
-    "Could it be the material?": `Unlikely. Batch ${batch} and recipe did not change (EV-06).`,
-    "When did parts go out of spec?": `First at ${fmtIST(firstOOT, START)}. ${oot} samples were above 25.020 mm (EV-04).`,
-  };
+  try {
+    answer = await chatWithGemini(question, machine, evidence, meta);
+    aiSource = `gemini (${GEMINI_MODEL})`;
+  } catch (err) {
+    console.warn(`Gemini chat failed, falling back to mock: ${err.message}`);
+    const answers = {
+      "Why did power rise?": `Power stayed above expected from ${fmtIST(detect, START)} (EV-01). Vibration rose in the same window (EV-02). Higher cutting force from a worn edge would explain both, but this is not confirmed. Next check: SOP-102 §3`,
+      "Could it be the material?": `Unlikely. Batch ${meta.batch} and recipe did not change (EV-06).`,
+      "When did parts go out of spec?": `First at ${fmtIST(firstOOT, START)}. ${oot} samples were above 25.020 mm (EV-04).`,
+    };
+    answer = answers[question] || `I can only answer from ${meta.incident || "this machine's"} evidence. Try one of the suggested questions.`;
+  }
 
-  const answer = answers[question] || `I can only answer from ${meta.incident || "this machine's"} evidence. Try one of the suggested questions.`;
-  res.json({ answer });
+  auditLog.push([new Date().toTimeString().slice(0, 5), `Chat for ${machine}: "${question}" (${aiSource})`]);
+  res.json({ answer, aiSource });
 });
 
 app.post("/api/simulate", (req, res) => {
@@ -270,13 +291,38 @@ app.get("/api/audit", (req, res) => {
   res.json({ entries: auditLog });
 });
 
-app.get("/api/settings/ai", (req, res) => {
-  res.json({ provider: "mock", model: "mock (no real AI yet)", cloud: false });
+// --- Gemma triage (Vertex AI) ---
+app.post("/api/triage", async (req, res) => {
+  const { machine } = req.body || {};
+  if (!machine) return res.status(400).json({ error: "machine required" });
+
+  const meta = MACH_META[machine];
+  if (!meta) return res.status(404).json({ error: `Unknown machine: ${machine}` });
+
+  const evidence = getEvidence(meta.type, machine, meta);
+  let triage;
+  let aiSource = "mock";
+
+  try {
+    triage = await triageWithGemma(machine, meta.type, evidence);
+    aiSource = `gemma (${GEMMA_MODEL} via Vertex AI)`;
+  } catch (err) {
+    console.warn(`Gemma triage failed, falling back to mock: ${err.message}`);
+    triage = `Incident on ${machine}: ${meta.type} pattern detected. Review evidence and proceed to investigation.`;
+  }
+
+  auditLog.push([new Date().toTimeString().slice(0, 5), `Triage for ${machine} (${aiSource})`]);
+  res.json({ triage, aiSource, machine, type: meta.type });
 });
 
-app.post("/api/settings/ai", (req, res) => {
-  const { provider } = req.body || {};
-  res.json({ provider: provider || "mock", model: "mock (no real AI yet)", cloud: false });
+app.get("/api/settings/ai", (req, res) => {
+  const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  const hasGemma = !!process.env.GCP_PROJECT_ID;
+  res.json({
+    gemini: { enabled: hasGemini, model: GEMINI_MODEL },
+    gemma: { enabled: hasGemma, model: GEMMA_MODEL, vertexAI: true },
+    cloud: true,
+  });
 });
 
 // SPA fallback
