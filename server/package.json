@@ -1,0 +1,13 @@
+{
+  "name": "ashvatrace-server",
+  "version": "0.1.0",
+  "description": "AshvaTrace backend — deterministic analytics + AI investigation",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}
