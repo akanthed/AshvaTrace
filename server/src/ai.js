@@ -8,6 +8,7 @@ const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-9b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
 const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
+const GEMMA_LOCATION = process.env.GEMMA_LOCATION || "us-central1";
 
 let gemmaClient = null;
 let authClient = null;
@@ -18,7 +19,7 @@ function getGemmaClient() {
     gemmaClient = new GoogleGenAI({
       vertexAI: true,
       project: GCP_PROJECT,
-      location: GCP_LOCATION,
+      location: GEMMA_LOCATION,
     });
   }
   return gemmaClient;
@@ -40,7 +41,7 @@ function vertexAIRequest(model, prompt, config = {}) {
     token.then((accessToken) => {
       const url = `https://aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_LOCATION}/publishers/google/models/${model}:generateContent`;
       const data = JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
         generationConfig: config,
       });
 
