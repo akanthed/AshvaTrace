@@ -316,11 +316,10 @@ app.post("/api/triage", async (req, res) => {
 });
 
 app.get("/api/settings/ai", (req, res) => {
-  const hasGemini = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
-  const hasGemma = !!process.env.GCP_PROJECT_ID;
+  const hasVertex = !!process.env.GCP_PROJECT_ID;
   res.json({
-    gemini: { enabled: hasGemini, model: GEMINI_MODEL },
-    gemma: { enabled: hasGemma, model: GEMMA_MODEL, vertexAI: true },
+    gemini: { enabled: hasVertex, model: GEMINI_MODEL, vertexAI: true },
+    gemma: { enabled: hasVertex, model: GEMMA_MODEL, vertexAI: true },
     cloud: true,
   });
 });

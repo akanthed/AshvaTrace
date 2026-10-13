@@ -1,35 +1,24 @@
 const { GoogleGenAI } = require("@google/genai");
 
 // --- Configuration ---
-// Gemini: uses GEMINI_API_KEY env var (or GOOGLE_API_KEY)
-// Gemma via Vertex AI: uses GOOGLE_APPLICATION_CREDENTIALS + GCP_PROJECT_ID
+// Both Gemini and Gemma use Vertex AI (GCP project billing)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-9b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
 const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
 
-let geminiClient = null;
-let gemmaClient = null;
+let vertexClient = null;
 
-function getGemini() {
-  if (!geminiClient) {
-    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    if (!apiKey) throw new Error("GEMINI_API_KEY or GOOGLE_API_KEY not set");
-    geminiClient = new GoogleGenAI({ apiKey });
-  }
-  return geminiClient;
-}
-
-function getGemma() {
-  if (!gemmaClient) {
-    if (!GCP_PROJECT) throw new Error("GCP_PROJECT_ID not set for Gemma/Vertex AI");
-    gemmaClient = new GoogleGenAI({
+function getVertexClient() {
+  if (!vertexClient) {
+    if (!GCP_PROJECT) throw new Error("GCP_PROJECT_ID not set for Vertex AI");
+    vertexClient = new GoogleGenAI({
       vertexAI: true,
       project: GCP_PROJECT,
       location: GCP_LOCATION,
     });
   }
-  return gemmaClient;
+  return vertexClient;
 }
 
 // --- Prompt builders ---
@@ -90,7 +79,7 @@ Respond with ONLY the classification sentence.`;
 // --- API functions ---
 
 async function investigateWithGemini(machine, type, evidence, meta) {
-  const client = getGemini();
+  const client = getVertexClient();
   const prompt = buildInvestigatePrompt(machine, type, evidence, meta);
 
   const response = await client.models.generateContent({
@@ -107,7 +96,7 @@ async function investigateWithGemini(machine, type, evidence, meta) {
 }
 
 async function chatWithGemini(question, machine, evidence, meta) {
-  const client = getGemini();
+  const client = getVertexClient();
   const prompt = buildChatPrompt(question, machine, evidence, meta);
 
   const response = await client.models.generateContent({
@@ -120,7 +109,7 @@ async function chatWithGemini(question, machine, evidence, meta) {
 }
 
 async function triageWithGemma(machine, type, evidence) {
-  const client = getGemma();
+  const client = getVertexClient();
   const prompt = buildTriagePrompt(machine, type, evidence);
 
   const response = await client.models.generateContent({
