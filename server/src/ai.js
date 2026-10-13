@@ -174,8 +174,14 @@ async function chatWithGemini(question, machine, evidence, meta) {
 
 async function triageWithGemma(machine, type, evidence) {
   const prompt = buildTriagePrompt(machine, type, evidence);
-  const text = await vertexAIRequest(GEMMA_MODEL, prompt, { temperature: 0.1, maxOutputTokens: 64 });
-  return text.trim();
+  try {
+    const text = await vertexAIRequest(GEMMA_MODEL, prompt, { temperature: 0.1, maxOutputTokens: 64 });
+    return text.trim();
+  } catch (err) {
+    console.warn(`Gemma triage failed (${err.message}), falling back to Gemini`);
+    const text = await vertexAIRequest(GEMINI_MODEL, prompt, { temperature: 0.1, maxOutputTokens: 64 });
+    return text.trim();
+  }
 }
 
 module.exports = {
