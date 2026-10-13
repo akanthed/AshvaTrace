@@ -1,24 +1,83 @@
 const { GoogleGenAI } = require("@google/genai");
+const { GoogleAuth } = require("google-auth-library");
+const https = require("https");
 
 // --- Configuration ---
 // Both Gemini and Gemma use Vertex AI (GCP project billing)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-9b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
-const GCP_LOCATION = process.env.GCP_LOCATION || "global";
+const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
 
-let vertexClient = null;
+let gemmaClient = null;
+let authClient = null;
 
-function getVertexClient() {
-  if (!vertexClient) {
+function getGemmaClient() {
+  if (!gemmaClient) {
     if (!GCP_PROJECT) throw new Error("GCP_PROJECT_ID not set for Vertex AI");
-    vertexClient = new GoogleGenAI({
+    gemmaClient = new GoogleGenAI({
       vertexAI: true,
       project: GCP_PROJECT,
       location: GCP_LOCATION,
     });
   }
-  return vertexClient;
+  return gemmaClient;
+}
+
+async function getAuthToken() {
+  if (!authClient) {
+    authClient = new GoogleAuth({
+      scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+    });
+  }
+  return await authClient.getAccessToken();
+}
+
+function vertexAIRequest(model, prompt, config = {}) {
+  return new Promise((resolve, reject) => {
+    const token = getAuthToken().then((t) => t).catch(reject);
+    
+    token.then((accessToken) => {
+      const url = `https://aiplatform.googleapis.com/v1/projects/${GCP_PROJECT}/locations/${GCP_LOCATION}/publishers/google/models/${model}:generateContent`;
+      const data = JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: config,
+      });
+
+      const req = https.request(
+        {
+          hostname: "aiplatform.googleapis.com",
+          path: url.replace("https://aiplatform.googleapis.com", ""),
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Length": Buffer.byteLength(data),
+          },
+        },
+        (res) => {
+          let body = "";
+          res.on("data", (chunk) => (body += chunk));
+          res.on("end", () => {
+            try {
+              const json = JSON.parse(body);
+              if (json.error) {
+                reject(new Error(json.error.message || JSON.stringify(json.error)));
+              } else {
+                resolve(json.candidates?.[0]?.content?.parts?.[0]?.text || "");
+              }
+            } catch (e) {
+              reject(new Error(`Failed to parse response: ${body.slice(0, 200)}`));
+            }
+          });
+        }
+      );
+
+      req.on("error", reject);
+      req.write(data);
+      req.end();
+    });
+  });
 }
 
 // --- Prompt builders ---
@@ -79,16 +138,9 @@ Respond with ONLY the classification sentence.`;
 // --- API functions ---
 
 async function investigateWithGemini(machine, type, evidence, meta) {
-  const client = getVertexClient();
   const prompt = buildInvestigatePrompt(machine, type, evidence, meta);
-
-  const response = await client.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: { temperature: 0.3, maxOutputTokens: 1024 },
-  });
-
-  const text = response.text;
+  const text = await vertexAIRequest(GEMINI_MODEL, prompt, { temperature: 0.3, maxOutputTokens: 1024 });
+  
   // Extract JSON array from response (handle potential markdown wrapping)
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error(`No JSON array in Gemini response: ${text.slice(0, 200)}`);
@@ -96,20 +148,13 @@ async function investigateWithGemini(machine, type, evidence, meta) {
 }
 
 async function chatWithGemini(question, machine, evidence, meta) {
-  const client = getVertexClient();
   const prompt = buildChatPrompt(question, machine, evidence, meta);
-
-  const response = await client.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: prompt,
-    config: { temperature: 0.2, maxOutputTokens: 256 },
-  });
-
-  return response.text.trim();
+  const text = await vertexAIRequest(GEMINI_MODEL, prompt, { temperature: 0.2, maxOutputTokens: 256 });
+  return text.trim();
 }
 
 async function triageWithGemma(machine, type, evidence) {
-  const client = getVertexClient();
+  const client = getGemmaClient();
   const prompt = buildTriagePrompt(machine, type, evidence);
 
   const response = await client.models.generateContent({
