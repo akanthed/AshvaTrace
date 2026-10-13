@@ -5,7 +5,7 @@ const { GoogleGenAI } = require("@google/genai");
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-9b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
-const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
+const GCP_LOCATION = process.env.GCP_LOCATION || "global";
 
 let vertexClient = null;
 
