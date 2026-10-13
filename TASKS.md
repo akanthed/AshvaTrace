@@ -33,9 +33,9 @@ one sitting.
       — UI and data flow now fully wired end-to-end, just with fake AI
 
 ## Phase 3 — Generalize beyond one scripted incident
-- [ ] Data generator supports multiple scenarios (healthy, drift, tool-change, post-action, unresolved)
-- [ ] `/api/investigate` and `/api/simulate` work for any machine, not just CNC-03
-- [ ] Remove the "only CNC-03 supported" stub from the frontend
+- [x] Data generator supports multiple scenarios (healthy, drift, tool-change, post-action, unresolved)
+- [x] `/api/investigate` and `/api/simulate` work for any machine, not just CNC-03
+- [x] Remove the "only CNC-03 supported" stub from the frontend
 
 ## Phase 4 — Deploy the full (still AI-mocked) app
 - [ ] Dockerfile (server + static frontend)
