@@ -5,7 +5,7 @@ const https = require("https");
 // --- Configuration ---
 // Both Gemini and Gemma use Vertex AI (GCP project billing)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-2b-it";
+const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-4-26b-a4b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
 const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
 const GEMMA_LOCATION = process.env.GEMMA_LOCATION || "us-central1";
