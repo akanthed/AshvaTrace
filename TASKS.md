@@ -11,25 +11,25 @@ Check items off as you go. Each item is meant to be small enough to do in
 one sitting.
 
 ## Phase 0 — Decide & lock basics
-- [ ] Confirm backend stack (Node.js assumed from original README)
-- [ ] Init git repo, commit mockup + docs as baseline
+- [x] Confirm backend stack (Node.js assumed from original README)
+- [x] Init git repo, commit mockup + docs as baseline
 - [ ] Create Google Cloud project, enable Cloud Run
 
 ## Phase 1 — Minimal backend skeleton
-- [ ] `server/` folder, Node/Express app, `GET /health`
-- [ ] Move synthetic data generator (`rng`, `gauss`, `S`) server-side
-- [ ] `GET /api/scenarios` — serve dataset as JSON
-- [ ] Wire mockup HTML to fetch `/api/scenarios` instead of generating inline
+- [x] `server/` folder, Node/Express app, `GET /health`
+- [x] Move synthetic data generator (`rng`, `gauss`, `S`) server-side
+- [x] `GET /api/scenarios` — serve dataset as JSON
+- [x] Wire mockup HTML to fetch `/api/scenarios` instead of generating inline
 
 ## Phase 2 — Deterministic core (full app, AI still mocked)
-- [ ] `POST /api/simulate` — port `calcOpts()` cost/energy math
-- [ ] `POST /api/verify` — port `runVerify()` pass/partial/unresolved logic
-- [ ] `POST /api/work-orders/draft` — stub endpoint
-- [ ] Server-side audit trail (in-memory or SQLite to start)
-- [ ] `POST /api/investigate` — returns the mockup's hardcoded `HYP`/`ANS`
+- [x] `POST /api/simulate` — port `calcOpts()` cost/energy math
+- [x] `POST /api/verify` — port `runVerify()` pass/partial/unresolved logic
+- [x] `POST /api/work-orders/draft` — stub endpoint
+- [x] Server-side audit trail (in-memory or SQLite to start)
+- [x] `POST /api/investigate` — returns the mockup's hardcoded `HYP`/`ANS`
       content as real JSON responses (same shape real AI will return later,
       just not AI-generated yet)
-- [ ] Frontend calls `/api/investigate` instead of reading `HYP`/`ANS` inline
+- [x] Frontend calls `/api/investigate` instead of reading `HYP`/`ANS` inline
       — UI and data flow now fully wired end-to-end, just with fake AI
 
 ## Phase 3 — Generalize beyond one scripted incident

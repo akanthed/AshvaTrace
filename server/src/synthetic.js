@@ -32,26 +32,40 @@ const INSPECT = 2050;
 const LO = 24.980;
 const HI = 25.020;
 
-function generateScenario(seed = 4207) {
+/**
+ * Generate a scenario for a given machine.
+ * type: "healthy" | "drift" | "tool-change" | "post-action" | "unresolved"
+ */
+function generateScenario(seed = 4207, type = "drift") {
   const R = rng(seed);
   const gauss = makeGauss(R);
   const S = [];
 
+  // Scenario parameters
+  const params = {
+    healthy:    { driftStart: 9999, driftRate: 0, vibDrift: 0, dimDrift: 0, toolChange: 650 },
+    drift:      { driftStart: 960,  driftRate: 0.17, vibDrift: 1.9, dimDrift: 0.021, toolChange: 650 },
+    "tool-change": { driftStart: 700, driftRate: 0.12, vibDrift: 1.2, dimDrift: 0.015, toolChange: 650 },
+    "post-action": { driftStart: 960, driftRate: 0.08, vibDrift: 0.8, dimDrift: 0.010, toolChange: 650 },
+    unresolved: { driftStart: 800,  driftRate: 0.14, vibDrift: 1.5, dimDrift: 0.018, toolChange: 650 },
+  };
+  const p = params[type] || params.drift;
+
   for (let i = 0; i < N; i++) {
-    const d = i < DRIFT ? 0 : Math.min(1, (i - DRIFT) / 1100);
+    const d = i < p.driftStart ? 0 : Math.min(1, (i - p.driftStart) / 1100);
     const exp = 7.2 + 0.25 * Math.sin(i / 180);
     S.push({
       i,
       exp,
-      kw: exp * (1 + 0.17 * d) + gauss() * 0.12,
-      vib: 2.1 + 1.9 * d * d + gauss() * 0.12,
-      cyc: 48 + 3.2 * d + gauss() * 0.4,
-      dim: 25.004 + 0.021 * d + gauss() * 0.0025,
+      kw: exp * (1 + p.driftRate * d) + gauss() * 0.12,
+      vib: 2.1 + p.vibDrift * d * d + gauss() * 0.12,
+      cyc: 48 + 3.2 * d * (p.driftRate / 0.17) + gauss() * 0.4,
+      dim: 25.004 + p.dimDrift * d + gauss() * 0.0025,
       temp: 41 + gauss() * 0.4,
     });
   }
 
-  return { S, N, DT, START, TOOL_CHANGE, DRIFT, INSPECT, LO, HI };
+  return { S, N, DT, START, TOOL_CHANGE: p.toolChange, DRIFT: p.driftStart, INSPECT, LO, HI, type };
 }
 
 // --- Deterministic analytics (shared) ---

@@ -544,7 +544,7 @@ function actions(){
    ${st.decision==="approved"?`<button class="primary" data-tab="verify">Go to verification</button>`:""}</div>`;
 }
 async function calcOpts(){
-  const r=await fetch("/api/simulate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({tariff:st.tariff,co2:st.co2,partCost:st.partCost,cur:st.cur})});
+  const r=await fetch("/api/simulate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({machine:st.mach,tariff:st.tariff,co2:st.co2,partCost:st.partCost,cur:st.cur})});
   const d=await r.json();
   st.opts=d.options;
   return d.options;
@@ -621,7 +621,7 @@ function render(){
 async function ask(q){
   if(st.provider==="off")return;
   chatLog.push(["me",q]);
-  const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q})});
+  const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({question:q,machine:st.mach})});
   const d=await r.json();
   chatLog.push(["ai",d.answer]);
   render(); const l=$("#log"); if(l) l.scrollTop=l.scrollHeight;
@@ -642,7 +642,7 @@ document.addEventListener("click",e=>{
   if(d.q){return ask(d.q)}
   if(b.name==="opt"){st.option=b.value;return render()}
   if(b.id==="runInv"){
-    fetch("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({machine:"CNC-03"})})
+    fetch("/api/investigate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({machine:st.mach})})
       .then(r=>r.json()).then(d=>{HYP=d.hypotheses;st.investigated=true;log(`Investigation run by ${PROVIDERS[st.provider].model}. ${d.hypotheses.length} hypotheses, all IDs valid`);render()});
     return;
   }
