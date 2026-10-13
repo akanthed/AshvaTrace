@@ -38,7 +38,7 @@ one sitting.
 - [x] Remove the "only CNC-03 supported" stub from the frontend
 
 ## Phase 4 — Deploy the full (still AI-mocked) app
-- [ ] Dockerfile (server + static frontend)
+- [x] Dockerfile (server + static frontend)
 - [ ] `gcloud run deploy` — get the complete app live
 - [ ] End-to-end smoke test on deployed URL, fresh browser session
 
