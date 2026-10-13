@@ -142,28 +142,28 @@ async function investigateWithGemini(machine, type, evidence, meta) {
   const prompt = buildInvestigatePrompt(machine, type, evidence, meta);
   const text = await vertexAIRequest(GEMINI_MODEL, prompt, { temperature: 0.3, maxOutputTokens: 1024 });
   
-  console.log(`Gemini investigate raw response: ${text.slice(0, 500)}`);
+  console.log(`Gemini investigate raw response (first 500 chars): ${text.slice(0, 500)}`);
+  
+  // Try to parse the entire response as JSON first
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+    if (typeof parsed === "object") return [parsed];
+  } catch (e) {
+    // Not valid JSON, try to extract
+  }
   
   // Extract JSON array from response (handle potential markdown wrapping)
-  let jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    // Try to find JSON object and wrap in array
-    jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return [JSON.parse(jsonMatch[0])];
-      } catch (e) {
-        throw new Error(`Failed to parse JSON object: ${text.slice(0, 200)}`);
-      }
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (jsonMatch) {
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      throw new Error(`Failed to parse JSON array: ${jsonMatch[0].slice(0, 200)}`);
     }
-    throw new Error(`No JSON in Gemini response: ${text.slice(0, 200)}`);
   }
   
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch (e) {
-    throw new Error(`Failed to parse JSON array: ${jsonMatch[0].slice(0, 200)}`);
-  }
+  throw new Error(`No valid JSON in Gemini response: ${text.slice(0, 300)}`);
 }
 
 async function chatWithGemini(question, machine, evidence, meta) {
@@ -173,16 +173,9 @@ async function chatWithGemini(question, machine, evidence, meta) {
 }
 
 async function triageWithGemma(machine, type, evidence) {
-  const client = getGemmaClient();
   const prompt = buildTriagePrompt(machine, type, evidence);
-
-  const response = await client.models.generateContent({
-    model: GEMMA_MODEL,
-    contents: prompt,
-    config: { temperature: 0.1, maxOutputTokens: 64 },
-  });
-
-  return response.text.trim();
+  const text = await vertexAIRequest(GEMMA_MODEL, prompt, { temperature: 0.1, maxOutputTokens: 64 });
+  return text.trim();
 }
 
 module.exports = {
