@@ -5,7 +5,7 @@ const https = require("https");
 // --- Configuration ---
 // Both Gemini and Gemma use Vertex AI (GCP project billing)
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-9b-it";
+const GEMMA_MODEL = process.env.GEMMA_MODEL || "gemma-2-2b-it";
 const GCP_PROJECT = process.env.GCP_PROJECT_ID || "";
 const GCP_LOCATION = process.env.GCP_LOCATION || "us-central1";
 const GEMMA_LOCATION = process.env.GEMMA_LOCATION || "us-central1";
@@ -142,10 +142,28 @@ async function investigateWithGemini(machine, type, evidence, meta) {
   const prompt = buildInvestigatePrompt(machine, type, evidence, meta);
   const text = await vertexAIRequest(GEMINI_MODEL, prompt, { temperature: 0.3, maxOutputTokens: 1024 });
   
+  console.log(`Gemini investigate raw response: ${text.slice(0, 500)}`);
+  
   // Extract JSON array from response (handle potential markdown wrapping)
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) throw new Error(`No JSON array in Gemini response: ${text.slice(0, 200)}`);
-  return JSON.parse(jsonMatch[0]);
+  let jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) {
+    // Try to find JSON object and wrap in array
+    jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        return [JSON.parse(jsonMatch[0])];
+      } catch (e) {
+        throw new Error(`Failed to parse JSON object: ${text.slice(0, 200)}`);
+      }
+    }
+    throw new Error(`No JSON in Gemini response: ${text.slice(0, 200)}`);
+  }
+  
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch (e) {
+    throw new Error(`Failed to parse JSON array: ${jsonMatch[0].slice(0, 200)}`);
+  }
 }
 
 async function chatWithGemini(question, machine, evidence, meta) {
