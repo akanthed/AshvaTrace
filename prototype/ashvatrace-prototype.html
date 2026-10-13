@@ -1,0 +1,701 @@
+<title>AshvaTrace Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: moneo-style console. Full-width tile home, then asset navigator + tool tabs + sub-tabs.
+   Single dark theme like moneo: charcoal greys, one orange accent; red/yellow/green only for machine state. */
+:root{
+  --bar:#2b2b2b; --bar-fg:#f2f2f2; --bar-muted:#b5b5b5; --bar-line:#1f1f1f;
+  --bg:#333333; --panel:#3c3c3c; --panel-2:#4a4a4a; --line:#555555;
+  --fg:#f2f2f2; --muted:#b5b5b5; --accent:#f39200; --accent-ink:#1e1e1e;
+  --ok:#5cb85c; --warn:#f0d03a; --crit:#e5483d;
+  --plot-actual:#f39200; --plot-expected:#b5b5b5; --plot-tol:#f0d03a;
+  --f-display:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-body:"Roboto",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Roboto Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font:14px/1.45 var(--f-body);display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;padding:0 16px;height:50px;background:var(--bar);color:var(--bar-fg);border-bottom:1px solid var(--bar-line);flex:none}
+.brand{display:flex;align-items:center;gap:10px;background:none;border:0;padding:0}
+.brand b{font:500 18px var(--f-display)}
+.brand small{color:var(--bar-muted);font-size:12px}
+.sim{font:500 11px var(--f-mono);letter-spacing:.08em;padding:2px 7px;border:1px solid var(--accent);color:var(--accent);border-radius:2px}
+.top .sp{flex:1}
+.ai-chip{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--bar-line);background:none;border-radius:2px;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+.dot.off{background:var(--bar-muted)} .dot.cloud{background:var(--accent)}
+.clock{font:500 12px var(--f-mono);color:var(--bar-muted);text-align:right;line-height:1.25;padding:0 6px;border-left:1px solid var(--bar-line);border-right:1px solid var(--bar-line)}
+.ico-btn{background:none;border:0;padding:6px;position:relative;color:var(--bar-muted)}
+.ico-btn:hover{color:var(--bar-fg)}
+.badge{position:absolute;top:0;right:-2px;background:var(--crit);color:#fff;font:600 10px var(--f-mono);padding:0 4px;border-radius:8px}
+
+/* shell */
+.shell{flex:1;display:grid;grid-template-columns:250px 1fr;min-height:0}
+nav.tree{background:var(--panel);border-right:1px solid var(--line);overflow:auto;padding:12px 0}
+.search{margin:0 12px 12px;display:flex;border:1px solid var(--line);background:var(--bg)}
+.search input{flex:1;min-width:0;background:none;border:0;color:var(--fg);padding:7px 10px;font:inherit}
+.tree h4{margin:12px 16px 4px;font:500 11px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.m{display:grid;grid-template-columns:10px 1fr auto;align-items:center;gap:10px;width:100%;padding:7px 16px 7px 28px;background:none;border:0;text-align:left;border-left:3px solid transparent}
+.m:hover{background:var(--panel-2)}
+.m.sel{background:var(--panel-2);border-left-color:var(--accent)}
+.m .st{width:10px;height:10px;border-radius:2px}
+.m small{color:var(--muted);font-size:11px}
+.st.ok{background:var(--ok)} .st.warn{background:var(--warn)} .st.crit{background:var(--crit)}
+.legend{margin:16px;font-size:12px;color:var(--muted);display:grid;gap:4px}
+.legend span{display:flex;gap:8px;align-items:center}
+
+main{overflow:auto;min-width:0}
+.shell.full{grid-template-columns:1fr}.shell.full nav.tree{display:none}
+.tabs{display:flex;gap:2px;background:var(--bar);border-bottom:1px solid var(--line);padding:0 12px;overflow-x:auto;position:sticky;top:0;z-index:2}
+.tab{background:none;border:0;padding:13px 18px;color:var(--fg);font-size:15px;display:flex;gap:8px;align-items:center;white-space:nowrap;border-bottom:2px solid transparent}
+.tab svg{width:18px;height:18px;color:var(--accent)}
+.tab.on{background:var(--panel);border-bottom-color:var(--accent)}
+.tab .step{font:500 11px var(--f-mono);color:var(--muted)}
+.sub{display:flex;gap:24px;padding:10px 24px 0;border-bottom:1px solid var(--line);overflow-x:auto}
+.sub button{background:none;border:0;padding:4px 0 10px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+.sub button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.view{padding:20px 24px 40px;display:grid;gap:16px}
+
+/* home: moneo tile launcher */
+.launch{padding:24px 24px 40px}
+.gtabs{display:flex;gap:40px;flex-wrap:wrap;margin:0 0 24px 12px}
+.gtabs button{background:none;border:0;padding:0 0 8px;font-size:20px;color:var(--muted);border-bottom:2px solid transparent}
+.gtabs button.on{color:var(--fg);border-bottom-color:var(--accent)}
+.sheet{background:var(--panel);display:grid;grid-template-columns:220px minmax(0,1fr);gap:24px;padding:24px 24px 32px}
+.hero{display:grid;justify-items:center;align-content:start;text-align:center;gap:6px;padding:24px 24px 0 0;border-right:1px solid var(--line)}
+.hero b{font:400 22px var(--f-display)}
+.hero span{font-size:15px;line-height:1.4}
+.sec{display:grid;gap:14px;align-content:start;scroll-margin-top:16px}
+.sec+.sec{margin-top:22px}
+.sec h2{font:400 22px var(--f-display);margin:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,208px));gap:8px}
+.tile{background:var(--panel-2);border:0;padding:10px 10px 12px;height:206px;display:flex;flex-direction:column;text-align:left;gap:4px;position:relative;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+.tile:hover{background:color-mix(in srgb,var(--panel-2) 85%,white)}
+.tile b{font:500 19px var(--f-display);line-height:1.25}
+.tile span{color:var(--muted);font-size:15px;line-height:1.35}
+.tile svg{margin-top:auto;align-self:flex-end;width:52px;height:52px;color:var(--accent)}
+.tile .flag{position:absolute;left:10px;bottom:12px;font:500 12px var(--f-mono);padding:2px 6px;background:var(--crit);color:#fff;border-radius:2px}
+/* plant overview */
+.home{padding:20px 24px 40px;display:grid;gap:16px;max-width:1400px}
+.ph{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.ph h1{font:600 20px var(--f-display);margin:0}
+.ph span{color:var(--muted);font-size:13px}
+.counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--panel-2);border:1px solid var(--line)}
+.count{padding:12px 16px;border-right:1px solid var(--line);display:grid;gap:2px}
+.count:last-child{border-right:0}
+.count small{font:500 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.count b{font:500 24px var(--f-mono);font-variant-numeric:tabular-nums}
+.count b i{font-style:normal;font-size:13px;color:var(--muted);margin-left:4px}
+.alarmrow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--panel-2);border:1px solid var(--line);border-left:4px solid var(--crit);padding:12px 16px}
+.alarmrow .txt{flex:1;min-width:220px;display:grid;gap:2px}
+.alarmrow .txt small{color:var(--muted)}
+.mtable tbody tr{cursor:pointer}
+.mtable tbody tr:hover td{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.mtable td{vertical-align:middle}
+.mtable .stc{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.spark{width:120px;height:28px;display:block}
+.dev-up{color:var(--crit)} .dev-mid{color:var(--warn)}
+
+/* panels */
+.inc-head{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--crit);padding:12px 16px}
+.inc-head h1{font:600 22px var(--f-display);margin:0}
+.kv{display:flex;flex-direction:column;font-size:12px;color:var(--muted)}
+.kv b{color:var(--fg);font:500 13px var(--f-mono)}
+.pill{font:500 11px var(--f-mono);letter-spacing:.05em;padding:3px 8px;border-radius:2px;text-transform:uppercase}
+.pill.crit{background:color-mix(in srgb,var(--crit) 22%,transparent);color:var(--crit)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+.pill.ok{background:color-mix(in srgb,var(--ok) 22%,transparent);color:var(--ok)}
+.pill.info{background:color-mix(in srgb,var(--accent) 20%,transparent);color:var(--accent)}
+.split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--line);min-width:0}
+.panel>header{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.panel>header h3{margin:0;font:600 15px var(--f-display);letter-spacing:.02em}
+.panel>header .sp{flex:1}
+.panel .body{padding:12px 14px}
+.chart{display:grid;grid-template-columns:150px minmax(0,1fr);border-bottom:1px solid var(--line)}
+.chart:last-child{border-bottom:0}
+.chart .lbl{padding:10px 12px;display:grid;gap:2px;align-content:start;border-right:1px solid var(--line);font-size:12px;color:var(--muted)}
+.chart .lbl b{color:var(--fg);font:600 14px var(--f-display)}
+.chart .lbl .num{color:var(--fg)}
+.chart svg{width:100%;height:auto;display:block}
+.axis text,.plot text{fill:var(--muted);font:10px var(--f-mono)}
+.grid line{stroke:var(--line);stroke-width:1}
+.toolbar{display:flex;gap:6px;flex-wrap:wrap}
+.tb{background:var(--panel-2);border:1px solid var(--line);padding:4px 10px;font-size:12px}
+.tb.on{border-color:var(--accent);color:var(--accent)}
+
+.ev{display:grid;grid-template-columns:62px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);align-items:start;font-size:13px}
+.ev:last-child{border-bottom:0}
+.ev .id{font:500 12px var(--f-mono);color:var(--accent)}
+.ev small{color:var(--muted);display:block}
+.chipref{font:500 11px var(--f-mono);background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--accent);border:0;padding:2px 6px;border-radius:2px;margin:1px}
+.chipref.sop{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.chipref:hover{outline:1px solid currentColor}
+
+.primary{background:var(--accent);color:var(--accent-ink);border:0;padding:10px 18px;font-weight:600;border-radius:2px}
+.primary:disabled{opacity:.45;cursor:not-allowed}
+.ghost{background:none;border:1px solid var(--line);padding:9px 16px;border-radius:2px}
+.ghost.danger{border-color:var(--crit);color:var(--crit)}
+.next{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:var(--panel);border:1px solid var(--line)}
+.next .msg{color:var(--muted);flex:1;min-width:200px}
+
+/* chat */
+.chat{display:flex;flex-direction:column;height:100%;max-height:640px}
+.log{flex:1;overflow:auto;padding:12px 14px;display:grid;gap:10px;align-content:start;min-height:220px}
+.bub{padding:8px 10px;font-size:13px;border:1px solid var(--line);background:var(--panel-2)}
+.bub.me{justify-self:end;background:color-mix(in srgb,var(--accent) 14%,var(--panel-2));max-width:85%}
+.bub .who{font:500 10px var(--f-mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:4px}
+.suggest{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
+.suggest button{font-size:12px;background:none;border:1px solid var(--line);padding:4px 8px}
+.ask{display:flex;border-top:1px solid var(--line)}
+.ask input{flex:1;min-width:0;background:var(--bg);border:0;padding:10px 12px;color:var(--fg);font:inherit}
+.ask button{border:0;background:var(--accent);color:var(--accent-ink);padding:0 14px;font-weight:600}
+
+/* hypotheses */
+.hyp{border:1px solid var(--line);background:var(--panel-2);padding:12px 14px;display:grid;gap:8px}
+.hyp h4{margin:0;font:600 16px var(--f-display);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.hyp .rank{font:500 12px var(--f-mono);color:var(--muted)}
+.fa{display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px}
+.fa div>span{font:500 11px var(--f-mono);letter-spacing:.06em;color:var(--muted);text-transform:uppercase;display:block;margin-bottom:2px}
+.nextcheck{font-size:13px;border-top:1px dashed var(--line);padding-top:8px}
+.prov{font:12px var(--f-mono);color:var(--muted)}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--panel-2)}
+td.num,th.num{text-align:right}
+.opt-sel td{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.assume{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.assume label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.assume input,.assume select{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 8px;font:13px var(--f-mono)}
+.formula{font:12px var(--f-mono);color:var(--muted);line-height:1.7}
+
+.verdict{display:flex;align-items:center;gap:16px;padding:16px;border:1px solid var(--line);background:var(--panel)}
+.verdict .big{font:600 30px var(--f-display);letter-spacing:.03em}
+.cmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px}
+.cmp .c{background:var(--panel);border:1px solid var(--line);padding:12px}
+.cmp .c small{color:var(--muted);font-size:12px;display:block}
+.cmp .c .row{display:flex;justify-content:space-between;font:13px var(--f-mono);margin-top:6px}
+.empty{padding:28px;text-align:left;color:var(--muted);border:1px dashed var(--line);display:grid;gap:8px}
+.empty ol{margin:0;padding-left:20px;color:var(--fg)}
+
+.audit li{padding:8px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:130px 1fr;gap:12px;font-size:13px}
+.audit ul{list-style:none;margin:0;padding:0}
+.audit time{font:12px var(--f-mono);color:var(--muted)}
+
+.arch pre.mermaid{background:var(--panel-2);padding:12px;overflow-x:auto;margin:0}
+.modes{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px}
+.mode{border:1px solid var(--line);background:var(--panel-2);padding:12px;display:grid;gap:6px;font-size:13px;text-align:left}
+.mode.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.mode b{font:600 16px var(--f-display)}
+.mode code{font:12px var(--f-mono);color:var(--muted)}
+.dash{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.dtile{background:var(--panel-2);border:1px solid var(--line);padding:12px;display:grid;gap:4px;cursor:grab;position:relative}
+.dtile.drag{opacity:.4}
+.dtile .val{font:600 28px var(--f-mono)}
+.dtile .rm{position:absolute;top:8px;right:8px;background:none;border:0;color:var(--muted);font-size:13px;padding:2px}
+.dtile .rm:hover{color:var(--crit)}
+.addrow{display:flex;gap:8px;align-items:center}
+.addrow select{background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:6px 8px;font:13px var(--f-mono)}
+table.thr input{width:84px;background:var(--bg);border:1px solid var(--line);color:var(--fg);padding:5px 6px;font:12px var(--f-mono)}
+.foot{font-size:12px;color:var(--muted);padding:8px 24px 16px}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));right:16px;background:var(--panel-2);border:1px solid var(--accent);padding:10px 14px;font-size:13px;z-index:9}
+
+@media (max-width:1050px){.split{grid-template-columns:1fr}.chat{max-height:none}}
+@media (max-width:760px){
+  .shell{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  nav.tree{border-right:0;border-bottom:1px solid var(--line);padding:8px 0;display:flex;overflow-x:auto;gap:4px}
+  nav.tree .search,nav.tree h4,.legend{display:none}
+  .m{grid-template-columns:10px auto;padding:6px 12px;border-left:0;border-bottom:3px solid transparent;width:auto;white-space:nowrap}
+  .m small{display:none}
+  .m.sel{border-bottom-color:var(--accent)}
+  .sheet{grid-template-columns:1fr}.hero{border:0;padding:0}.tiles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}.tile{height:170px}.gtabs{gap:20px}.gtabs button{font-size:16px}
+  .counts{grid-template-columns:repeat(2,minmax(0,1fr))}.count:nth-child(2){border-right:0}.count:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .chart{grid-template-columns:1fr}.chart .lbl{border-right:0;grid-template-columns:repeat(4,auto);justify-content:start;gap:4px 12px}
+  .fa{grid-template-columns:1fr}
+  .top{gap:8px}.brand small,.clock,.ai-chip .lab{display:none}
+  .view,.home{padding-inline:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <button class="brand" id="homeBtn" aria-label="Home">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M2 20 L8 8 L13 15 L17 5 L24 20" fill="none" stroke="var(--accent)" stroke-width="2.4" stroke-linejoin="round"/><circle cx="17" cy="5" r="2.4" fill="var(--crit)"/></svg>
+    <b>AshvaTrace</b><small>by Team Ashvamedh</small>
+  </button>
+  <span class="sim">SIMULATED DATA</span>
+  <span class="sp"></span>
+  <button class="ai-chip" id="aiChip" title="AI provider"><span class="dot" id="aiDot"></span><span class="lab" id="aiLab">Gemma 3 · local (Docker)</span></button>
+  <div class="clock"><div id="cDate"></div><div id="cTime"></div></div>
+  <button class="ico-btn" id="bell" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11a6 6 0 0 0-5-5.9V4a1 1 0 0 0-2 0v1.1A6 6 0 0 0 6 11v5l-2 2v1h16v-1z"/></svg><span class="badge">3</span></button>
+  <button class="ico-btn" id="alarm" aria-label="Active alarms"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2zm12-3h-2v-2h2zm0-4h-2v-4h2z"/></svg><span class="badge">1</span></button>
+  <button class="ico-btn" id="cfgBtn" aria-label="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg></button>
+</header>
+
+<div class="shell">
+  <nav class="tree" aria-label="Asset navigator">
+    <div class="search"><input id="navSearch" placeholder="Search in navigator" aria-label="Search machines"></div>
+    <div id="treeList"></div>
+    <div class="legend"><span><i class="st ok m-st" style="width:10px;height:10px;display:inline-block"></i>Normal</span><span><i class="st warn" style="width:10px;height:10px;display:inline-block"></i>Watch</span><span><i class="st crit" style="width:10px;height:10px;display:inline-block"></i>Action required</span></div>
+  </nav>
+  <main id="main"></main>
+</div>
+
+<script>
+/* ---------- synthetic data (seeded, deterministic) ---------- */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const R=rng(4207), gauss=()=>{let u=0,v=0;while(!u)u=R();while(!v)v=R();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)};
+const N=2400, DT=12, START=Date.UTC(2026,9,12,0,30); // 06:00 IST shift start
+const TOOL_CHANGE=650, DRIFT=960, INSPECT=2050;
+const S=[];
+for(let i=0;i<N;i++){
+  const d=i<DRIFT?0:Math.min(1,(i-DRIFT)/1100);
+  const exp=7.2+0.25*Math.sin(i/180);
+  S.push({i,
+    exp, kw:exp*(1+0.17*d)+gauss()*0.12,
+    vib:2.1+1.9*d*d+gauss()*0.12,
+    cyc:48+3.2*d+gauss()*0.4,
+    dim:25.004+0.021*d+gauss()*0.0025,
+    temp:41+gauss()*0.4});
+}
+const LO=24.980, HI=25.020;
+const ts=i=>{const t=new Date(START+i*DT*1000);return t.toISOString().slice(11,16)};
+const fmtIST=i=>{const t=new Date(START+i*DT*1000+5.5*3600e3);return t.toISOString().slice(11,16)};
+
+/* ---------- deterministic analytics ---------- */
+const mean=a=>a.reduce((s,x)=>s+x,0)/a.length;
+const base=S.slice(0,TOOL_CHANGE);
+const BASE={vib:mean(base.map(s=>s.vib)),cyc:mean(base.map(s=>s.cyc)),temp:mean(base.map(s=>s.temp))};
+const K=25; // consecutive readings above threshold
+let run=0, detect=null;
+for(const s of S){ if((s.kw-s.exp)/s.exp>0.08){if(++run===K&&detect===null)detect=s.i-K+1}else run=0 }
+const win=S.slice(detect);
+const devPct=win.map(s=>100*(s.kw-s.exp)/s.exp);
+const excessKWh=win.reduce((a,s)=>a+(s.kw-s.exp)*DT/3600,0);
+const firstOOT=S.find(s=>s.dim>HI)?.i;
+const oot=win.filter(s=>s.dim>HI||s.dim<LO).length;
+const stats=(arr)=>({latest:arr[arr.length-1],avg:mean(arr),peak:Math.max(...arr)});
+const EV={
+ "EV-01":{t:"Power above expected, sustained",d:`+${mean(devPct).toFixed(1)}% avg vs baseline, ${K} consecutive readings > 8% from ${fmtIST(detect)}`,w:[detect,N-1]},
+ "EV-02":{t:"Vibration rose in same window",d:`${BASE.vib.toFixed(2)} → ${stats(win.map(s=>s.vib)).latest.toFixed(2)} mm/s RMS (latest)`,w:[detect,N-1]},
+ "EV-03":{t:"Cycle time increased",d:`${BASE.cyc.toFixed(1)} s → ${mean(S.slice(-150).map(s=>s.cyc)).toFixed(1)} s (last 30 min avg)`,w:[detect,N-1]},
+ "EV-04":{t:"Dimension above upper tolerance",d:`First at ${fmtIST(firstOOT)}; ${oot} of ${win.length} samples out of 25.000 ±0.020 mm`,w:[firstOOT,N-1]},
+ "EV-05":{t:"Tool change event E-117 (T-14 installed)",d:`At ${fmtIST(TOOL_CHANGE)}, ${((detect-TOOL_CHANGE)*DT/60).toFixed(0)} min before drift began`,w:[TOOL_CHANGE,TOOL_CHANGE+20]},
+ "EV-06":{t:"Material batch unchanged",d:"MB-2207 throughout shift; recipe R-45 unchanged",w:[0,N-1]},
+ "EV-07":{t:"Spindle temperature stable",d:`${BASE.temp.toFixed(1)} °C baseline, max ${Math.max(...S.map(s=>s.temp)).toFixed(1)} °C`,w:[0,N-1]},
+};
+const SOP={"SOP-101 §2":"Process Drift Response: confirm offsets against setup sheet","SOP-102 §3":"Tool Inspection: measure flank wear VB; replace if > 0.3 mm","SOP-103 §1":"Post-Adjustment Verification: 30 min window, compare to baseline"};
+
+/* ---------- app state ---------- */
+const sparkOf=(base,drift,seed)=>{const r=rng(seed);return Array.from({length:24},(_,i)=>base+drift*i/23+(r()-.5)*1.2)};
+const cnc3=S.slice(-600).filter((_,i)=>i%25===0).map(s=>100*(s.kw-s.exp)/s.exp);
+const MACH=[
+ {id:"CNC-01",line:"Line 1",st:"ok",note:"Running · R-45",state:"Running",order:"PO-88229 · R-45",dev:1.2,epp:0.098,trend:sparkOf(1,0,1)},
+ {id:"CNC-02",line:"Line 1",st:"ok",note:"Running · R-45",state:"Running",order:"PO-88230 · R-45",dev:-0.6,epp:0.096,trend:sparkOf(0,0,2)},
+ {id:"CNC-03",line:"Line 1",st:"crit",note:"INC-0412 open",state:"Running",order:"PO-88231 · R-45",dev:mean(cnc3.slice(-6)),epp:0.121,trend:cnc3},
+ {id:"CNC-04",line:"Line 1",st:"warn",note:"Power +6% (watch)",state:"Running",order:"PO-88232 · R-45",dev:6.1,epp:0.104,trend:sparkOf(3,3,4)},
+ {id:"CNC-05",line:"Line 2",st:"warn",note:"INC-0398 unresolved",state:"Running",order:"PO-88240 · R-48",dev:7.4,epp:0.109,trend:sparkOf(7,0,5)},
+ {id:"CNC-06",line:"Line 2",st:"ok",note:"Setup · R-51",state:"Setup",order:"PO-88241 · R-51",dev:0,epp:0,trend:sparkOf(0,0,6)},
+];
+const PROVIDERS={
+ local:{lab:"Gemma 3 · local (Docker)",dot:"",model:"gemma3:12b via Ollama container",cloud:false},
+ vertex:{lab:"Gemma 3 · Vertex AI (cloud)",dot:"cloud",model:"gemma-3-27b-it on Vertex AI endpoint",cloud:true},
+ off:{lab:"AI disabled",dot:"off",model:"none",cloud:false},
+};
+const st={view:"home",group:"monitor",mach:"CNC-03",tab:"trends",sub:"all",hl:null,provider:"local",investigated:false,option:null,decision:null,verify:null,
+  tariff:8.5,co2:0.71,cur:"₹",partCost:420,
+  dash:["kw","vib","dim"],
+  thresholds:{
+    kw:{hiAlarm:9.0,hiWarn:8.2,loWarn:6.4,loAlarm:6.0},
+    vib:{hiAlarm:4.0,hiWarn:3.0,loWarn:1.6,loAlarm:1.4},
+    cyc:{hiAlarm:52,hiWarn:50,loWarn:47,loAlarm:46},
+    dim:{hiAlarm:25.030,hiWarn:25.020,loWarn:24.980,loAlarm:24.970},
+    temp:{hiAlarm:48,hiWarn:45,loWarn:36,loAlarm:34},
+  },
+  audit:[
+   ["06:00","Shift started, baseline built from 06:00–08:10 (healthy window, tool T-13)"],
+   [fmtIST(detect),`INC-0412 opened by detector: EV-01 (${K} consecutive readings > 8%)`],
+  ]};
+const $=s=>document.querySelector(s);
+const toast=m=>{const t=document.createElement("div");t.className="toast";t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),2600)};
+const log=m=>st.audit.push([new Date().toTimeString().slice(0,5),m]);
+
+/* ---------- icons ---------- */
+const I={
+ trend:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M3 21h18"/></svg>',
+ inv:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="10" cy="10" r="6"/><path d="M15 15l6 6"/></svg>',
+ act:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 6l4 4-9 9H5v-4z"/></svg>',
+ ver:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12l5 5L20 6"/></svg>',
+ aud:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7"/></svg>',
+ plant:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 42V22l10 6v-6l10 6v-6l10 6V8h8v34z"/></svg>',
+ chart:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 38l10-12 8 6 9-14 11 8"/><path d="M5 43h38"/></svg>',
+ ai:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8 10h32v22H22l-8 8v-8H8z"/><path d="M16 21h16"/></svg>',
+ sop:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5h17l8 8v30H12z"/><path d="M18 22h13M18 29h13M18 36h8"/></svg>',
+ wrench:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M30 6a10 10 0 0 0-9 14L6 35l7 7 15-15A10 10 0 0 0 42 18l-6 6-6-2-2-6 6-6z"/></svg>',
+ check:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="24" cy="24" r="18"/><path d="M15 24l7 7 12-14"/></svg>',
+ log:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10 6h28v36H10z"/><path d="M16 15h16M16 23h16M16 31h10"/></svg>',
+ gear:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="24" cy="24" r="6"/><path d="M24 4v7M24 37v7M4 24h7M37 24h7M10 10l5 5M33 33l5 5M10 38l5-5M33 15l5-5"/></svg>',
+ stack:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="36" height="10"/><rect x="6" y="19" width="36" height="10"/><rect x="6" y="32" width="36" height="10"/></svg>',
+ money:'<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="5" y="12" width="38" height="24"/><circle cx="24" cy="24" r="5"/></svg>',
+};
+
+/* ---------- chart ---------- */
+const STEP=5; // downsample to 1-min points for drawing
+function chart({key,title,unit,fmt,expKey,tol,yMin,yMax}){
+  const W=900,H=150,L=44,Rr=8,T=10,B=22, pts=S.filter((_,i)=>i%STEP===0);
+  const x=i=>L+(W-L-Rr)*i/(N-1), y=v=>T+(H-T-B)*(1-(v-yMin)/(yMax-yMin));
+  const path=k=>pts.map((s,j)=>(j?"L":"M")+x(s.i).toFixed(1)+" "+y(s[k]).toFixed(1)).join("");
+  const ticks=[]; for(let k=0;k<=4;k++){const v=yMin+(yMax-yMin)*k/4;ticks.push(`<line x1="${L}" x2="${W-Rr}" y1="${y(v)}" y2="${y(v)}"/><text x="${L-6}" y="${y(v)+3}" text-anchor="end" style="fill:var(--muted);font:10px var(--f-mono)">${fmt(v)}</text>`)}
+  const xt=[];for(let h=0;h<=8;h++){const i=Math.min(N-1,h*300);xt.push(`<text x="${x(i)}" y="${H-6}" text-anchor="middle">${fmtIST(i)}</text>`)}
+  const hl=st.hl&&EV[st.hl]?`<rect x="${x(EV[st.hl].w[0])}" y="${T}" width="${Math.max(3,x(EV[st.hl].w[1])-x(EV[st.hl].w[0]))}" height="${H-T-B}" fill="var(--accent)" opacity=".14"/>`:"";
+  const ev=[[TOOL_CHANGE,"Tool change"],[detect,"Detected"],[INSPECT,"Inspection"]].map(([i,l])=>`<line x1="${x(i)}" x2="${x(i)}" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${x(i)+4}" y="${T+9}">${l}</text>`).join("");
+  const tl=tol?tol.map(v=>`<line x1="${L}" x2="${W-Rr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--plot-tol)" stroke-width="1.2" stroke-dasharray="6 3"/>`).join(""):"";
+  const vals=S.map(s=>s[key]), s=stats(win.map(s=>s[key]));
+  const lastPt=pts[pts.length-1];
+  return `<div class="chart"><div class="lbl"><b>${title}</b><span>${unit}</span>
+    <span>Latest <span class="num">${fmt(vals[N-1])}</span></span>
+    <span>Avg in incident <span class="num">${fmt(s.avg)}</span></span>
+    <span>Peak in incident <span class="num">${fmt(s.peak)}</span></span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${title} trend">
+      <g class="grid">${ticks.join("")}</g>${hl}<g class="plot">${ev}</g>${tl}
+      ${expKey?`<path d="${path(expKey)}" fill="none" stroke="var(--plot-expected)" stroke-width="1.4" stroke-dasharray="5 3"/>`:""}
+      <path d="${path(key)}" fill="none" stroke="var(--plot-actual)" stroke-width="1.5"/>
+      <circle cx="${x(lastPt.i)}" cy="${y(lastPt[key])}" r="3.5" fill="var(--plot-actual)"/>
+      <g class="axis">${xt.join("")}</g></svg></div>`;
+}
+
+/* ---------- views ---------- */
+function tree(){
+  const q=($("#navSearch").value||"").toLowerCase();
+  let html="",line="";
+  html+=`<h4>Pune Plant</h4>`;
+  for(const m of MACH.filter(m=>m.id.toLowerCase().includes(q))){
+    if(m.line!==line){line=m.line;html+=`<h4 style="margin-left:24px">${line}</h4>`}
+    html+=`<button class="m ${st.view==="mach"&&st.mach===m.id?"sel":""}" data-m="${m.id}"><i class="st ${m.st}"></i><span>${m.id}</span></button>`;
+  }
+  $("#treeList").innerHTML=html;
+}
+function spark(vals,col){
+  const w=120,h=28,mn=-4,mx=20,r=mx-mn; // fixed % scale so machines compare
+  const d=vals.map((v,i)=>(i?"L":"M")+(i*w/(vals.length-1)).toFixed(1)+" "+(h-3-(h-6)*(v-mn)/r).toFixed(1)).join("");
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${d}" fill="none" stroke="var(--${col})" stroke-width="1.5"/></svg>`;
+}
+function plant(){
+  const n={ok:0,warn:0,crit:0}; MACH.forEach(m=>n[m.st]++);
+  const lbl={ok:"Normal",warn:"Watch",crit:"Action required"};
+  const rows=MACH.map(m=>{
+    const dc=m.dev>=8?"dev-up":m.dev>=5?"dev-mid":"";
+    const col=m.st==="ok"?"muted":m.st;
+    return `<tr data-m="${m.id}" tabindex="0"><td><span class="stc"><i class="st ${m.st}" style="width:10px;height:10px;display:inline-block"></i>${lbl[m.st]}</span></td>
+     <td><b class="mono">${m.id}</b><br><small style="color:var(--muted)">${m.line}</small></td><td>${m.state}</td><td class="mono">${m.order}</td>
+     <td class="num ${dc}">${m.dev>0?"+":""}${m.dev.toFixed(1)}%</td><td>${spark(m.trend,col)}</td><td class="num">${m.epp?m.epp.toFixed(3):"–"}</td><td>${m.note}</td></tr>`}).join("");
+  return `<div class="home">
+  <div class="ph"><h1>Pune Plant</h1><span>Shift A · 06:00–14:00 IST · 2 lines · ${MACH.length} machines</span></div>
+  <div class="counts">
+   <div class="count"><small>Action required</small><b style="color:var(--crit)">${n.crit}</b></div>
+   <div class="count"><small>Watch</small><b style="color:var(--warn)">${n.warn}</b></div>
+   <div class="count"><small>Normal</small><b>${n.ok}</b></div>
+   <div class="count"><small>Excess energy this shift</small><b>${excessKWh.toFixed(1)}<i>kWh</i></b></div>
+  </div>
+  <div class="alarmrow"><span class="pill crit">Action required</span><div class="txt"><b>CNC-03 · INC-0412 · power, vibration and bore size drifting together</b><small>Opened ${fmtIST(detect)} IST by detector · ${oot} measurements above 25.020 mm · cause not confirmed</small></div><button class="primary" data-m="CNC-03">Open incident</button></div>
+  <section class="panel"><header><h3>Machines</h3><span class="sp"></span><span class="prov">Click a row to open the machine</span></header>
+  <div class="tbl-wrap"><table class="mtable"><thead><tr><th>Status</th><th>Machine</th><th>State</th><th>Order · recipe</th><th class="num">Power vs expected</th><th>Last 2 h</th><th class="num">kWh / good part</th><th>Note</th></tr></thead><tbody>${rows}</tbody></table></div></section>
+  </div>`;
+}
+const HOME=[
+ ["monitor","Monitor",[
+   ["Plant overview","Machine states, power vs expected and energy per good part","plant","plant",true],
+   ["Trends","Power, vibration, cycle time and dimensions on one time axis","chart","mach:trends"]]],
+ ["investigate","Investigate & verify",[
+   ["Investigation","AI hypotheses with evidence for and against, plus incident chat","ai","mach:investigate"],
+   ["Interventions","Compare simulated actions, risks and costs, then approve","wrench","mach:actions"],
+   ["Verification","Before and after check computed by code","check","mach:verify"],
+   ["Audit trail","Who approved what, with which evidence and model","log","mach:audit"]]],
+ ["system","System",[
+   ["AI provider","Local Gemma in Docker, Gemma on Vertex AI, or off","gear","settings"],
+   ["Architecture","Docker Compose on site, Cloud Run in the cloud","stack","arch"]]],
+];
+function home(){
+  const tile=([t,d,ic,go,flag])=>`<button class="tile" data-go="${go}"><b>${t}</b><span>${d}</span>${flag?`<i class="flag">1 action required</i>`:""}${I[ic]}</button>`;
+  return `<div class="launch">
+  <div class="gtabs">${HOME.map(([k,l])=>`<button class="${st.group===k?"on":""}" data-group="${k}">${l}</button>`).join("")}</div>
+  <div class="sheet"><div class="hero">
+    <svg width="96" height="80" viewBox="0 0 96 80" aria-hidden="true"><path d="M6 64 L26 30 L42 50 L58 14 L90 64" fill="none" stroke="var(--fg)" stroke-width="5" stroke-linejoin="round"/><circle cx="58" cy="14" r="7" fill="var(--accent)"/><path d="M6 74h84" stroke="var(--accent)" stroke-width="4"/></svg>
+    <b>AshvaTrace</b><span>Detect the signal.<br>Investigate the cause.<br>Verify the improvement.</span></div>
+  <div>${HOME.map(([k,l,tiles])=>`<section class="sec" id="g-${k}"><h2>${l}</h2><div class="tiles">${tiles.map(tile).join("")}</div></section>`).join("")}</div>
+  </div></div>`;
+}
+const TABS=[["table","Monitoring","trend"],["trends","Trends","trend"],["dashboard","Dashboard","stack"],["threshold","Threshold","gear"],["investigate","Investigate","inv"],["actions","Actions","act"],["verify","Verify","ver"],["audit","Audit","aud"]];
+const SIGNALS=[
+ {k:"kw",label:"Active power",unit:"kW"},
+ {k:"vib",label:"Vibration",unit:"mm/s RMS"},
+ {k:"cyc",label:"Cycle time",unit:"s"},
+ {k:"dim",label:"Bore diameter",unit:"mm"},
+ {k:"temp",label:"Spindle temperature",unit:"°C"},
+];
+function sigStatus(sig,v){
+  const t=st.thresholds[sig.k];
+  if(v>=t.hiAlarm||v<=t.loAlarm) return "crit";
+  if(v>=t.hiWarn||v<=t.loWarn) return "warn";
+  return "ok";
+}
+function table(){
+  const last=S[N-1];
+  const rows=SIGNALS.map(sig=>{
+    const v=last[sig.k], col=sigStatus(sig,v);
+    const lbl={ok:"Normal",warn:"Warning",crit:"Alarm"}[col];
+    return `<tr><td class="mono">${sig.label}</td><td class="num mono" style="color:var(--${col==="ok"?"fg":col})">${v.toFixed(sig.k==="dim"?3:1)}</td><td>${sig.unit}</td>
+     <td><span class="stc"><i class="st ${col}" style="width:10px;height:10px;display:inline-block"></i>${lbl}</span></td><td class="mono">${fmtIST(last.i)} IST</td></tr>`}).join("");
+  return `<section class="panel"><header><h3>Monitoring table · CNC-03</h3><span class="sp"></span><span class="prov">Live values, deterministic</span></header>
+   <div class="tbl-wrap"><table><thead><tr><th>Source</th><th class="num">Value</th><th>Unit</th><th>Status</th><th>Last update</th></tr></thead><tbody>${rows}</tbody></table></div></section>
+   ${nextBar("Colors come from the thresholds you set for each signal.","Edit thresholds","threshold")}`;
+}
+function dashboard(){
+  const avail=SIGNALS.filter(s=>!st.dash.includes(s.k));
+  const tiles=st.dash.map((k,idx)=>{
+    const sig=SIGNALS.find(s=>s.k===k), v=S[N-1][k], col=sigStatus(sig,v);
+    return `<div class="dtile" draggable="true" data-dix="${idx}"><button class="rm" data-rmdash="${k}" title="Remove">✕</button>
+     <span class="num" style="color:var(--muted);font-size:12px">${sig.label}</span>
+     <span class="val" style="color:var(--${col==="ok"?"fg":col})">${v.toFixed(sig.k==="dim"?3:1)}</span>
+     <span style="color:var(--muted);font-size:12px">${sig.unit}</span></div>`}).join("");
+  const addOpt=avail.length?`<div class="addrow"><select id="addDash">${avail.map(s=>`<option value="${s.k}">${s.label}</option>`).join("")}</select><button class="ghost" id="addDashBtn">Add tile</button></div>`:`<span class="prov">All signals are on the dashboard.</span>`;
+  return `<section class="panel"><header><h3>Dashboard · CNC-03</h3><span class="sp"></span><span class="prov">Drag tiles to reorder</span></header><div class="body" style="display:grid;gap:16px">
+   ${st.dash.length?`<div class="dash" id="dashGrid">${tiles}</div>`:`<div class="empty"><b style="color:var(--fg)">No tiles yet</b>Add a datasource below to start the dashboard.</div>`}
+   ${addOpt}</div></section>
+   ${nextBar("Build a quick view of the signals that matter for this machine.","Open monitoring table","table")}`;
+}
+function threshold(){
+  const rows=SIGNALS.map(sig=>{
+    const t=st.thresholds[sig.k], v=S[N-1][sig.k], col=sigStatus(sig,v);
+    const num=(f,val)=>`<input type="number" step="0.01" data-thr="${sig.k}:${f}" value="${val}">`;
+    return `<tr><td class="mono">${sig.label} <span style="color:var(--muted)">(${sig.unit})</span></td>
+     <td>${num("hiAlarm",t.hiAlarm)}</td><td>${num("hiWarn",t.hiWarn)}</td><td>${num("loWarn",t.loWarn)}</td><td>${num("loAlarm",t.loAlarm)}</td>
+     <td class="num mono" style="color:var(--${col==="ok"?"fg":col})">${v.toFixed(sig.k==="dim"?3:1)}</td></tr>`}).join("");
+  return `<section class="panel"><header><h3>Threshold · CNC-03</h3><span class="sp"></span><span class="prov">Edit to recompute status live</span></header>
+   <div class="tbl-wrap"><table class="thr"><thead><tr><th>Signal</th><th>Upper alarm</th><th>Upper warning</th><th>Lower warning</th><th>Lower alarm</th><th class="num">Current</th></tr></thead><tbody>${rows}</tbody></table></div>
+   <div class="body"><p class="prov">Value turns red at or beyond an alarm limit, yellow at or beyond a warning limit. Deterministic, no AI.</p></div></section>
+   ${nextBar("These limits drive the colors in Monitoring and the Dashboard.","Open monitoring table","table")}`;
+}
+function machine(){
+  const m=MACH.find(x=>x.id===st.mach);
+  if(m.id!=="CNC-03") return `<div class="view"><div class="empty"><b style="color:var(--fg)">${m.id} · ${m.note}</b>This prototype only carries data for CNC-03. In the build, every machine gets the same workspace:<ol><li>Pick a machine in the navigator</li><li>Open its trends or incidents</li><li>Follow the next-step button at the bottom of each tab</li></ol><div><button class="primary" data-m="CNC-03">Open CNC-03 incident</button></div></div></div>`;
+  const tabs=TABS.map(([k,l,ic],n)=>`<button class="tab ${st.tab===k?"on":""}" data-tab="${k}">${I[ic]}${l}</button>`).join("");
+  const head=`<div class="inc-head"><h1>CNC-03</h1><span class="pill crit">Action required</span>
+    <div class="kv">Incident<b>INC-0412</b></div><div class="kv">Opened<b>${fmtIST(detect)} IST</b></div>
+    <div class="kv">Order / recipe<b>PO-88231 · R-45</b></div><div class="kv">Tool / batch<b>T-14 · MB-2207</b></div>
+    <div class="kv">Status<b>${st.verify?st.verify.result:st.decision==="approved"?"Action approved":st.investigated?"Hypotheses ready":"Under investigation"}</b></div></div>`;
+  return `<div class="tabs" role="tablist">${tabs}</div><div class="view">${head}${({table,trends,dashboard,threshold,investigate,actions,verify,audit})[st.tab]()}</div>`;
+}
+function trends(){
+  const subs=[["all","All signals"],["power","Power"],["quality","Quality"]];
+  const sub=`<div class="toolbar">${subs.map(([k,l])=>`<button class="tb ${st.sub===k?"on":""}" data-sub="${k}">${l}</button>`).join("")}${st.hl?`<button class="tb on" data-hl="">Highlight ${st.hl} ✕</button>`:""}</div>`;
+  const C={
+    power:chart({key:"kw",expKey:"exp",title:"Active power",unit:"kW · actual vs expected (dashed)",fmt:v=>v.toFixed(1),yMin:6,yMax:9.5}),
+    vib:chart({key:"vib",title:"Vibration",unit:"mm/s RMS",fmt:v=>v.toFixed(1),yMin:1.5,yMax:4.5}),
+    cyc:chart({key:"cyc",title:"Cycle time",unit:"s per part",fmt:v=>v.toFixed(0),yMin:46,yMax:53}),
+    dim:chart({key:"dim",title:"Bore diameter",unit:"mm · tolerance 24.980–25.020",fmt:v=>v.toFixed(3),tol:[HI],yMin:24.995,yMax:25.035}),
+  };
+  const show=st.sub==="power"?[C.power]:st.sub==="quality"?[C.dim,C.cyc]:[C.power,C.vib,C.cyc,C.dim];
+  return `<div class="split"><section class="panel"><header><h3>Shared timeline · 06:00–14:00 IST</h3><span class="sp"></span>${sub}</header>${show.join("")}</section>
+  <section class="panel"><header><h3>Computed evidence</h3><span class="sp"></span><span class="pill info">deterministic</span></header><div class="body">
+  ${Object.entries(EV).map(([id,e])=>`<div class="ev"><button class="chipref" data-hl="${id}">${id}</button><div>${e.t}<small>${e.d}</small></div></div>`).join("")}
+  <p class="prov" style="margin:10px 0 0">Baseline: 06:00–08:10 healthy window, same recipe and batch. Simplified workload model.</p></div></section></div>
+  ${nextBar("Energy, vibration and dimension moved together. That is a correlation, not a cause.","Investigate with AI","investigate")}`;
+}
+function nextBar(msg,label,tab,disabled){return `<div class="next"><span class="msg">${msg}</span><button class="primary" data-tab="${tab}" ${disabled?"disabled":""}>${label}</button></div>`}
+const chip=id=>id.startsWith("SOP")?`<button class="chipref sop" title="${SOP[id]}">${id}</button>`:`<button class="chipref" data-hl="${id}">${id}</button>`;
+const HYP=[
+ {h:"Accelerated wear on insert T-14",u:"Medium",for:["EV-01","EV-02","EV-03","EV-04"],ag:["EV-05"],r:"Power, vibration, cycle time and bore size all rise gradually in the same window, which fits progressive edge wear.",agTxt:"T-14 was installed 1 h before drift began. Wear this fast is unusual, so check for a defective insert.",nc:"Measure flank wear VB on T-14.",sop:"SOP-102 §3"},
+ {h:"Tool offset entered wrongly at tool change",u:"Medium",for:["EV-04","EV-05"],ag:["EV-01","EV-02"],r:"Dimension shift follows a tool change event.",agTxt:"A wrong offset gives a step change in size, not a gradual rise in power and vibration.",nc:"Compare offset table against the setup sheet.",sop:"SOP-101 §2"},
+ {h:"Spindle bearing degradation",u:"High",for:["EV-02"],ag:["EV-07","EV-06"],r:"Vibration rise alone is consistent with bearing wear.",agTxt:"Spindle temperature is flat and the batch is unchanged. Bearing wear usually raises temperature.",nc:"Run spindle run-out check if insert check is clean.",sop:"SOP-101 §2"},
+];
+function investigate(){
+  const p=PROVIDERS[st.provider];
+  let left;
+  if(st.provider==="off") left=`<div class="empty"><b style="color:var(--fg)">AI is disabled</b>The computed evidence on the Trends tab is still valid. No AI hypotheses are shown, and none are made up.<div><button class="ghost" data-go="settings">Choose an AI provider</button></div></div>`;
+  else if(!st.investigated) left=`<div class="empty"><b style="color:var(--fg)">No hypotheses yet</b>Gemma gets 7 evidence items and 3 SOP excerpts. It never sees scenario labels or ground truth.${p.cloud?'<span class="pill warn" style="justify-self:start">Evidence will be sent to Google Cloud</span>':""}<div><button class="primary" id="runInv">Run investigation</button></div></div>`;
+  else left=HYP.map((h,n)=>`<article class="hyp"><h4><span class="rank">H${n+1}</span>${h.h}<span class="pill ${h.u==="High"?"warn":"info"}">uncertainty ${h.u.toLowerCase()}</span></h4>
+    <div style="font-size:13px">${h.r}</div>
+    <div class="fa"><div><span>Evidence for</span>${h.for.map(chip).join("")}</div><div><span>Evidence against</span>${h.ag.map(chip).join("")}<div style="margin-top:4px;color:var(--muted)">${h.agTxt}</div></div></div>
+    <div class="nextcheck"><b>Next check:</b> ${h.nc} ${chip(h.sop)}</div></article>`).join("")+
+    `<p class="prov">Provider: ${p.model} · response JSON validated · 0 unknown IDs rejected · cause not confirmed</p>`;
+  return `<div class="split"><section class="panel"><header><h3>Competing hypotheses</h3><span class="sp"></span><span class="pill info">AI · hypotheses only</span></header><div class="body" style="display:grid;gap:10px">${left}</div></section>
+  <section class="panel chat"><header><h3>Ask this incident</h3><span class="sp"></span><span class="prov">${p.lab}</span></header>
+   <div class="log" id="log">${chatLog.map(([w,t])=>`<div class="bub ${w==="me"?"me":""}"><span class="who">${w==="me"?"Engineer":"Gemma"}</span>${t}</div>`).join("")}</div>
+   <div class="suggest">${Object.keys(ANS).map(q=>`<button data-q="${q}">${q}</button>`).join("")}</div>
+   <form class="ask" id="askForm"><input id="askIn" placeholder="${st.provider==="off"?"AI disabled":"Ask about INC-0412…"}" ${st.provider==="off"?"disabled":""} aria-label="Question"><button>Ask</button></form></section></div>
+  ${nextBar(st.investigated?"Pick an action to test. Nothing is sent to the machine.":"Run the investigation first, or go straight to actions.","Compare actions","actions")}`;
+}
+const chatLog=[["ai",`Incident INC-0412 has 7 evidence items. Ask about any of them. I answer only from the evidence list and SOPs.`]];
+const ANS={
+ "Why did power rise?":`Power stayed above expected from ${fmtIST(detect)} ${chip("EV-01")}. Vibration rose in the same window ${chip("EV-02")}. Higher cutting force from a worn edge would explain both, but this is not confirmed. Next check: ${chip("SOP-102 §3")}`,
+ "Could it be the material?":`Unlikely. Batch MB-2207 and recipe R-45 did not change ${chip("EV-06")}.`,
+ "When did parts go out of spec?":`First at ${fmtIST(firstOOT)}. ${oot} samples were above 25.020 mm ${chip("EV-04")}.`,
+};
+function actions(){
+  const opts=calcOpts();
+  const row=o=>`<tr class="${st.option===o.id?"opt-sel":""}"><td><label><input type="radio" name="opt" value="${o.id}" ${st.option===o.id?"checked":""} ${st.decision?"disabled":""}> <b>${o.id}</b></label></td><td>${o.desc}</td><td>${o.risk}</td><td class="num">${o.down}</td><td class="num">${o.energy}</td><td>${o.quality}</td><td class="num">${st.cur}${o.cost.toLocaleString("en-IN")}</td><td class="num">${st.cur}${Math.round(o.net).toLocaleString("en-IN")}</td><td>${o.crit}</td></tr>`;
+  const dec=st.decision?`<span class="pill ${st.decision==="approved"?"ok":"warn"}">${st.decision==="approved"?"Approved "+st.option:"Rejected · state unchanged"}</span>`:"";
+  return `<section class="panel"><header><h3>Simulated interventions</h3><span class="sp"></span>${dec}</header><div class="tbl-wrap"><table>
+   <thead><tr><th></th><th>Action</th><th>Operational risk</th><th class="num">Downtime</th><th class="num">Energy / shift</th><th>Quality impact</th><th class="num">Action cost</th><th class="num">Net benefit / shift</th><th>Pass criteria</th></tr></thead>
+   <tbody>${opts.map(row).join("")}</tbody></table></div></section>
+  <section class="panel"><header><h3>Assumptions</h3><span class="sp"></span><span class="prov">edit to recompute</span></header><div class="body" style="display:grid;gap:12px">
+   <div class="assume">
+    <label>Currency<select id="cur">${["₹","¥","฿","S$","₩","Rp"].map(c=>`<option ${c===st.cur?"selected":""}>${c}</option>`).join("")}</select></label>
+    <label>Tariff (${st.cur}/kWh)<input id="tariff" type="number" step="0.1" value="${st.tariff}"></label>
+    <label>Grid factor (kg CO₂e/kWh)<input id="co2" type="number" step="0.01" value="${st.co2}"></label>
+    <label>Scrap cost (${st.cur}/part)<input id="partCost" type="number" step="10" value="${st.partCost}"></label></div>
+   <div class="formula">Excess energy (incident so far) = Σ(actual − expected) × 12 s = <b>${excessKWh.toFixed(2)} kWh</b><br>
+   Energy cost = excess kWh × tariff = <b>${st.cur}${(excessKWh*st.tariff).toFixed(0)}</b> · Carbon ≈ ${(excessKWh*st.co2).toFixed(1)} kg CO₂e (estimate)<br>
+   Net benefit = energy cost avoided + scrap cost avoided − action cost</div></div></section>
+  <div class="next"><span class="msg">Approving runs a simulation only. No command reaches any PLC or CNC.</span>
+   <button class="ghost danger" id="reject" ${st.decision?"disabled":""}>Reject</button>
+   <button class="primary" id="approve" ${!st.option||st.decision?"disabled":""}>Approve simulated action</button>
+   ${st.decision==="approved"?`<button class="primary" data-tab="verify">Go to verification</button>`:""}</div>`;
+}
+function calcOpts(){
+  const shiftExcess=excessKWh*(8*3600/((N-detect)*DT))*0.5, scrap=12;
+  return [
+   {id:"A",desc:"Replace insert T-14, re-zero offset (SOP-102)",risk:"Low. Standard tool change",down:"20 min",energy:`−${shiftExcess.toFixed(1)} kWh`,quality:"Expected back in spec",cost:1800+1500,net:shiftExcess*st.tariff+scrap*st.partCost-3300,crit:"Power dev < 5%, 98% in spec"},
+   {id:"B",desc:"Reduce feed 10% until shift end",risk:"Medium. Masks the cause; throughput −8%",down:"0 min",energy:`−${(shiftExcess*0.4).toFixed(1)} kWh`,quality:"Partial. Drift slows",cost:2600,net:shiftExcess*0.4*st.tariff+scrap*0.5*st.partCost-2600,crit:"Power dev < 5%, 98% in spec"},
+  ];
+}
+function verify(){
+  if(st.decision!=="approved") return `<div class="empty"><b style="color:var(--fg)">Nothing to verify yet</b><ol><li>Open Actions</li><li>Pick option A or B</li><li>Approve the simulated action</li></ol><div><button class="primary" data-tab="actions">Open actions</button></div></div>`;
+  if(!st.verify) return `<div class="empty"><b style="color:var(--fg)">Option ${st.option} approved</b>Verification compares a 30 min post-action window with the healthy baseline (${chip("SOP-103 §1")}).<div><button class="primary" id="runVer">Run verification</button></div></div>`;
+  const v=st.verify, col=v.result==="PASS"?"ok":v.result==="UNRESOLVED"?"crit":"warn";
+  const c=(l,b,a,ok)=>`<div class="c"><small>${l}</small><div class="row"><span>Before</span><b>${b}</b></div><div class="row"><span>After</span><b style="color:var(--${ok?"ok":"crit"})">${a}</b></div></div>`;
+  return `<div class="verdict"><span class="big" style="color:var(--${col})">${v.result}</span><span>${v.why}</span></div>
+   <div class="cmp">${c("Power deviation",`+${mean(devPct.slice(-150)).toFixed(1)}%`,`+${v.dev.toFixed(1)}%`,v.dev<5)}
+   ${c("Vibration (mm/s)",mean(win.slice(-150).map(s=>s.vib)).toFixed(2),v.vib.toFixed(2),v.vib<BASE.vib*1.2)}
+   ${c("Parts in spec",`${(100*(1-oot/win.length)).toFixed(0)}%`,`${v.inSpec.toFixed(0)}%`,v.inSpec>=98)}
+   ${c("Energy per good part (kWh)",(mean(win.slice(-150).map(s=>s.kw))*mean(win.slice(-150).map(s=>s.cyc))/3600/(1-oot/win.length)).toFixed(3),v.epp.toFixed(3),v.dev<5)}</div>
+   <p class="prov">Rule: PASS if deviation &lt; 5%, vibration &lt; 1.2× baseline and ≥ 98% in spec. PARTIAL if any metric improved. Else UNRESOLVED. Computed by code, not AI.</p>
+   ${nextBar("Result written to the audit trail.","Open audit trail","audit")}`;
+}
+function runVerify(){
+  const r=rng(st.option==="A"?11:29), g=()=>r()-.5, post=[];
+  for(let i=0;i<150;i++){const e=7.2;post.push(st.option==="A"
+    ?{dev:2+g()*2,vib:BASE.vib*1.05+g()*.1,dim:25.003+g()*.006,kw:e*1.02,cyc:48.3}
+    :{dev:9+g()*2,vib:BASE.vib*1.6+g()*.1,dim:25.012+g()*.02,kw:e*1.09,cyc:52})}
+  const dev=mean(post.map(p=>p.dev)),vib=mean(post.map(p=>p.vib)),inSpec=100*post.filter(p=>p.dim<=HI&&p.dim>=LO).length/150;
+  const epp=mean(post.map(p=>p.kw))*mean(post.map(p=>p.cyc))/3600/(inSpec/100);
+  const pass=dev<5&&vib<BASE.vib*1.2&&inSpec>=98, before=mean(devPct.slice(-150));
+  const result=pass?"PASS":dev<before?"PARTIAL IMPROVEMENT":"UNRESOLVED";
+  st.verify={dev,vib,inSpec,epp,result,why:pass?"All three checks met in the 30 min window.":"Some checks improved but the process is not back to baseline. Keep INC-0412 open."};
+  log(`Verification of option ${st.option}: ${result} (dev ${dev.toFixed(1)}%, ${inSpec.toFixed(0)}% in spec)`);
+}
+function audit(){
+  return `<section class="panel audit"><header><h3>Audit trail · INC-0412</h3><span class="sp"></span><span class="prov">stored in Postgres (prototype: in memory)</span></header><div class="body"><ul>
+   ${st.audit.map(([t,m])=>`<li><time>${t}</time><span>${m}</span></li>`).join("")}</ul></div></section>
+   <section class="panel audit"><header><h3>Earlier · CNC-05 · INC-0398</h3><span class="sp"></span><span class="pill crit">Unresolved</span></header><div class="body"><ul>
+   <li><time>Yesterday 14:20</time><span>Approved option B (reduce feed 10%) by Shift engineer, role: Process</span></li>
+   <li><time>Yesterday 15:05</time><span>Verification UNRESOLVED: power deviation +7.4%, 91% in spec. Escalated to maintenance.</span></li></ul></div></section>`;
+}
+function settings(){
+  const md=(k,t,d,c)=>`<button class="mode ${st.provider===k?"on":""}" data-prov="${k}"><b>${t}</b><span>${d}</span><code>${c}</code></button>`;
+  return `<div class="tabs"><button class="tab on" data-go="settings">${I.inv}AI provider</button><button class="tab" data-go="arch">${I.aud}Architecture</button></div><div class="view">
+  <section class="panel"><header><h3>Where AI runs</h3></header><div class="body" style="display:grid;gap:12px">
+  <div class="modes">${md("local","Local Gemma (Docker)","Runs in the plant. Evidence never leaves the site network.","ollama container · gemma3:12b · :11434")}
+  ${md("vertex","Gemma on Vertex AI","Managed cloud endpoint. Evidence is sent to Google Cloud.","Vertex AI endpoint · gemma-3-27b-it · server-side auth")}
+  ${md("off","AI disabled","Detection, charts, actions and verification keep working.","no model")}</div>
+  <p class="prov">Credentials live on the server only. Prototype switch: no real model is called, answers are canned samples.</p></div></section></div>`;
+}
+function arch(){
+  return `<div class="tabs"><button class="tab" data-go="settings">${I.inv}AI provider</button><button class="tab on" data-go="arch">${I.aud}Architecture</button></div><div class="view arch">
+  <section class="panel"><header><h3>One codebase, two deployments</h3></header><div class="body" style="display:grid;gap:12px">
+  <div class="modes">
+   <div class="mode on"><b>Local · docker compose</b><span>Works offline on a plant PC or LAN server</span>
+    <code>web + api (Node.js) → detector, formulas, verification</code>
+    <code>postgres:16 → readings, events, incidents, audit</code>
+    <code>ollama → Google Gemma 3, behind the AI adapter</code></div>
+   <div class="mode"><b>Google Cloud · hackathon demo</b><span>Same container image, managed services</span>
+    <code>Cloud Run → same app image</code>
+    <code>Cloud SQL → PostgreSQL</code>
+    <code>Vertex AI → Gemma endpoint · Cloud Logging</code></div>
+   <div class="mode"><b>Hybrid</b><span>Local stays primary. Cloud AI is used only when site policy allows it.</span>
+    <code>adapter: local Gemma first → Vertex Gemma fallback</code>
+    <code>UI shows "sent to cloud" on every cloud call</code></div>
+  </div>
+  <div class="tbl-wrap"><table><thead><tr><th>Service</th><th>Local (docker compose)</th><th>Cloud</th></tr></thead><tbody>
+   <tr><td>App + API</td><td>node:22-alpine container</td><td>Cloud Run, same image</td></tr>
+   <tr><td>Database</td><td>postgres:16 container + volume</td><td>Cloud SQL for PostgreSQL</td></tr>
+   <tr><td>LLM</td><td>ollama container, Google Gemma 3 (weights pulled once)</td><td>Gemma on Vertex AI (Model Garden endpoint)</td></tr>
+   <tr><td>Logs</td><td>docker logs</td><td>Cloud Logging</td></tr>
+   <tr><td>Auth to AI</td><td>none, LAN only</td><td>service account, server-side</td></tr></tbody></table></div>
+  </div></section></div>`;
+}
+
+/* ---------- render + events ---------- */
+function render(){
+  const p=PROVIDERS[st.provider];
+  $("#aiLab").textContent=p.lab; $("#aiDot").className="dot "+p.dot;
+  tree();
+  document.querySelector(".shell").classList.toggle("full",st.view==="home");
+  $("#main").innerHTML=st.view==="home"?home():st.view==="plant"?plant():st.view==="settings"?settings():st.view==="arch"?arch():machine()+
+    `<p class="foot">Synthetic demonstration only. Impact figures are estimates based on stated assumptions. No real equipment is connected or controlled.</p>`;
+}
+function ask(q){
+  if(st.provider==="off")return;
+  chatLog.push(["me",q]);
+  chatLog.push(["ai",ANS[q]||`I can only answer from INC-0412 evidence. Try one of the suggested questions. (Prototype: free-text goes to Gemma in the build.)`]);
+  render(); const l=$("#log"); if(l) l.scrollTop=l.scrollHeight;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button,input[type=radio],tr[data-m]"); if(!b)return;
+  const d=b.dataset;
+  if(b.id==="homeBtn"){st.view="home";return render()}
+  if(b.id==="aiChip"||b.id==="cfgBtn"){st.view="settings";return render()}
+  if(b.id==="alarm"||b.id==="bell"){st.view="mach";st.mach="CNC-03";st.tab="trends";return render()}
+  if(d.group){st.group=d.group;render();document.getElementById("g-"+d.group).scrollIntoView({behavior:"smooth",block:"start"});return}
+  if(d.m){st.view="mach";st.mach=d.m;return render()}
+  if(d.go){if(d.go.startsWith("mach:")){st.view="mach";st.mach="CNC-03";st.tab=d.go.slice(5)}else st.view=d.go;return render()}
+  if(d.tab){st.tab=d.tab;render();$("#main").scrollTop=0;return}
+  if(d.sub){st.sub=d.sub;return render()}
+  if("hl" in d){st.hl=d.hl||null;st.tab="trends";if(st.hl)st.sub="all";return render()}
+  if(d.prov){st.provider=d.prov;log(`AI provider set to ${PROVIDERS[d.prov].lab}`);toast("AI provider: "+PROVIDERS[d.prov].lab);return render()}
+  if(d.q){return ask(d.q)}
+  if(b.name==="opt"){st.option=b.value;return render()}
+  if(b.id==="runInv"){st.investigated=true;log(`Investigation run by ${PROVIDERS[st.provider].model}. 3 hypotheses, all IDs valid`);return render()}
+  if(b.id==="approve"){st.decision="approved";log(`Option ${st.option} approved (simulated) by Process engineer`);toast("Simulated action approved");return render()}
+  if(b.id==="reject"){st.decision="rejected";log(`Intervention rejected. Simulated state unchanged`);toast("Rejected. Nothing changed");return render()}
+  if(b.id==="runVer"){runVerify();return render()}
+  if(b.id==="addDashBtn"){const v=$("#addDash").value;if(v&&!st.dash.includes(v))st.dash.push(v);return render()}
+  if(d.rmdash){st.dash=st.dash.filter(k=>k!==d.rmdash);return render()}
+});
+let dragIx=null;
+document.addEventListener("dragstart",e=>{const t=e.target.closest(".dtile");if(!t)return;dragIx=+t.dataset.dix;t.classList.add("drag")});
+document.addEventListener("dragend",e=>{const t=e.target.closest(".dtile");if(t)t.classList.remove("drag")});
+document.addEventListener("dragover",e=>{if(e.target.closest(".dash"))e.preventDefault()});
+document.addEventListener("drop",e=>{
+  const t=e.target.closest(".dtile"); if(!t||dragIx===null)return; e.preventDefault();
+  const dropIx=+t.dataset.dix; if(dropIx===dragIx)return;
+  const arr=st.dash, [moved]=arr.splice(dragIx,1); arr.splice(dropIx,0,moved); dragIx=null; render();
+});
+document.addEventListener("submit",e=>{e.preventDefault();const v=$("#askIn").value.trim();if(v)ask(v)});
+document.addEventListener("change",e=>{const t=e.target;
+  if(t.id==="cur")st.cur=t.value;
+  if(["tariff","co2","partCost"].includes(t.id)){const v=parseFloat(t.value);if(isFinite(v)&&v>=0)st[t.id]=v}
+  if(["cur","tariff","co2","partCost"].includes(t.id))render();
+  if(t.dataset.thr){
+    const [sig,field]=t.dataset.thr.split(":"), v=parseFloat(t.value);
+    if(isFinite(v)){st.thresholds[sig][field]=v;render();const el=document.querySelector(`[data-thr="${t.dataset.thr}"]`);if(el)el.focus()}
+  }
+});
+$("#navSearch").addEventListener("input",tree);
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.matches("tr[data-m]"))e.target.click()});
+function tick(){const n=new Date();$("#cDate").textContent=n.toLocaleDateString("en-GB");$("#cTime").textContent=n.toLocaleTimeString("en-GB")}
+tick();setInterval(tick,1000);
+render();
+</script>

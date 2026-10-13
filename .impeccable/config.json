@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "roboto",
+        "files": [
+          "prototype/ashvatrace-prototype.html"
+        ],
+        "createdAt": "2026-10-13T05:18:13.993Z",
+        "reason": "intentional match to moneo reference UI, which the user is cloning"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "prototype/ashvatrace-prototype.html"
+        ],
+        "createdAt": "2026-10-13T05:18:14.193Z",
+        "reason": "intentional match to moneo reference UI left-border accent pattern, user is cloning that product's look"
+      }
+    ]
+  }
+}
