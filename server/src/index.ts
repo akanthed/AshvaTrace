@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import { routes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus } from './services/machineService';
-import { checkThresholds, publishAlert } from './services/alertService';
+import { checkThresholds, publishAlert, loadPersistedAlerts } from './services/alertService';
 import { loadPersistedIncidents, investigateIncident, getIncidentById } from './services/incidentService';
 import { broadcastEvent } from './routes/sseRoutes';
 import { initBigQuery, seedBigQuery } from './services/bigqueryService';
@@ -53,6 +53,7 @@ async function start() {
     // investigation history survive a server restart.
     await loadPersistedMachines();
     await loadPersistedIncidents();
+    await loadPersistedAlerts();
   }
 
   // Start threshold checker (every 5 seconds)

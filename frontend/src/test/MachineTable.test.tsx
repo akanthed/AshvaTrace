@@ -92,8 +92,8 @@ describe('MachineTable', () => {
         <MachineTable machines={mockMachines} statuses={mockStatuses} />
       </MemoryRouter>
     );
-    expect(screen.getByText('+1152.1')).toBeInTheDocument();
-    expect(screen.getByText('-2.1')).toBeInTheDocument();
+    expect(screen.getByText('+1152.1%')).toBeInTheDocument();
+    expect(screen.getByText('-2.1%')).toBeInTheDocument();
   });
 
   it('applies row-crit class to the critical row and row-warn to the warning row', () => {

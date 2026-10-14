@@ -77,7 +77,8 @@ function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey,
   const trendsMachine = machineId ?? 'CNC-03';
   // Investigation/Interventions/Verification/Audit all live on the open incident's page —
   // fall back to the machine's own tab (which itself links to the incident) when none is open.
-  const incidentOrMachine = (tab: string) => (incidentId ? `/incident/${incidentId}` : `/machine/${trendsMachine}?tab=${tab}`);
+  const incidentOrMachine = (tab: string) =>
+    incidentId ? `/incident/${incidentId}?tab=${tab}` : `/machine/${trendsMachine}?tab=${tab}`;
 
   return [
     [

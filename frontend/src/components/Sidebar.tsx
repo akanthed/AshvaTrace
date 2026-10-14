@@ -1,6 +1,10 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useMachines } from '../hooks/useMachines';
+import { api } from '../services/api';
+import type { Incident } from '../types';
+
+const OPEN_STATUSES: Incident['status'][] = ['open', 'investigating', 'action_taken'];
 
 function statusToSt(status: string): 'ok' | 'warn' | 'crit' {
   if (status === 'critical') return 'crit';
@@ -16,9 +20,59 @@ function statusLabel(status: string): string {
 
 export default function Sidebar() {
   const { machines, statuses } = useMachines();
-  const { id: selectedId } = useParams<{ id: string }>();
+  const { id: routeId } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const [openIncidentByMachine, setOpenIncidentByMachine] = useState<Map<string, string>>(new Map());
+  const [incidentMachineId, setIncidentMachineId] = useState<string | undefined>();
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      api
+        .getIncidents()
+        .then((incidents) => {
+          if (cancelled) return;
+          const next = new Map<string, string>();
+          for (const inc of incidents) {
+            if (OPEN_STATUSES.includes(inc.status)) next.set(inc.machineId, inc.id);
+          }
+          setOpenIncidentByMachine(next);
+        })
+        .catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, 10000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // On an incident page, the route param is the incident id, not a machine
+  // id — resolve it to a machine id so the right sidebar row still highlights.
+  const isIncidentRoute = location.pathname.startsWith('/incident/');
+  useEffect(() => {
+    if (!isIncidentRoute || !routeId) {
+      setIncidentMachineId(undefined);
+      return;
+    }
+    let cancelled = false;
+    api
+      .getIncident(routeId)
+      .then((inc) => {
+        if (!cancelled) setIncidentMachineId(inc.machineId);
+      })
+      .catch(() => {
+        if (!cancelled) setIncidentMachineId(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isIncidentRoute, routeId]);
+
+  const selectedId = isIncidentRoute ? incidentMachineId : routeId;
 
   const grouped = useMemo(() => {
     const lines = new Map<string, typeof machines>();
@@ -66,7 +120,10 @@ export default function Sidebar() {
                 <button
                   key={m.id}
                   className={`m${isSel ? ' sel' : ''}`}
-                  onClick={() => navigate(`/machine/${m.id}`)}
+                  onClick={() => {
+                    const openIncidentId = openIncidentByMachine.get(m.id);
+                    navigate(openIncidentId ? `/incident/${openIncidentId}` : `/machine/${m.id}`);
+                  }}
                 >
                   <span className={`st ${stClass}`} />
                   <span>

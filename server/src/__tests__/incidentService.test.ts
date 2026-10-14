@@ -42,25 +42,28 @@ vi.mock('../utils/ai', () => ({
   ),
 }));
 
-import {
-  createIncident,
-  getIncidents,
-  getIncidentById,
-  investigateIncident,
-  simulateAction,
-  verifyOutcome,
-  getAuditLog,
-} from '../services/incidentService';
 import { initShiftData } from '../services/machineService';
 
+// The incident store is module-level and persists across tests, so reset it
+// between tests by re-importing a fresh module instance (same pattern as
+// alertService.test.ts) — otherwise createIncident's open-incident dedup
+// reuses a prior test's incident for the same machine.
+async function resetIncidentStore() {
+  vi.resetModules();
+  return import('../services/incidentService');
+}
+
 describe('incidentService', () => {
-  beforeEach(() => {
+  let svc: typeof import('../services/incidentService');
+
+  beforeEach(async () => {
     initShiftData();
     vi.clearAllMocks();
+    svc = await resetIncidentStore();
   });
 
   it('createIncident creates an incident with an audit entry', () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
     expect(incident.id).toMatch(/^INC-/);
     expect(incident.machineId).toBe('CNC-03');
     expect(incident.machineName).toBe('CNC Mill 03');
@@ -70,13 +73,13 @@ describe('incidentService', () => {
     expect(incident.hypotheses).toEqual([]);
     expect(incident.auditLog).toHaveLength(1);
     expect(incident.auditLog[0].action).toBe('incident_detected');
-    expect(getIncidentById(incident.id)).toBe(incident);
-    expect(getIncidents().some((i) => i.id === incident.id)).toBe(true);
+    expect(svc.getIncidentById(incident.id)).toBe(incident);
+    expect(svc.getIncidents().some((i) => i.id === incident.id)).toBe(true);
   });
 
   it('investigateIncident returns hypotheses and updates status', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    const result = await investigateIncident(incident.id, {
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    const result = await svc.investigateIncident(incident.id, {
       machineId: 'CNC-03',
       devPct: 15.2,
       signals: { vibration: 3.2, cycleTime: 95 },
@@ -93,19 +96,19 @@ describe('incidentService', () => {
   });
 
   it('investigateIncident throws for unknown incident', async () => {
-    await expect(investigateIncident('INC-NOPE', { machineId: 'x', devPct: 1, signals: {} })).rejects.toThrow(
+    await expect(svc.investigateIncident('INC-NOPE', { machineId: 'x', devPct: 1, signals: {} })).rejects.toThrow(
       'Incident not found'
     );
   });
 
   it('simulateAction stores the simulation result', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    await investigateIncident(incident.id, {
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, {
       machineId: 'CNC-03',
       devPct: 15.2,
       signals: {},
     });
-    const result = await simulateAction(incident.id, {
+    const result = await svc.simulateAction(incident.id, {
       hypothesisId: 'HYP-1',
       action: 'Replace spindle bearing',
     });
@@ -120,19 +123,19 @@ describe('incidentService', () => {
   });
 
   it('simulateAction throws for unknown hypothesis', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    await investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
     await expect(
-      simulateAction(incident.id, { hypothesisId: 'HYP-99', action: 'x' })
+      svc.simulateAction(incident.id, { hypothesisId: 'HYP-99', action: 'x' })
     ).rejects.toThrow('Hypothesis not found');
   });
 
   it('verifyOutcome passes when metrics are within range', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    await investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
-    await simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
+    await svc.simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
 
-    const result = await verifyOutcome(incident.id, {
+    const result = await svc.verifyOutcome(incident.id, {
       actualMetrics: { powerDevPct: 1.5, vibrationMmS: 2.5, cycleTimeSec: 92 },
     });
     expect(result.verification!.passed).toBe(true);
@@ -141,11 +144,11 @@ describe('incidentService', () => {
   });
 
   it('verifyOutcome fails when metrics are out of range', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    await investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
-    await simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
+    await svc.simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
 
-    const result = await verifyOutcome(incident.id, {
+    const result = await svc.verifyOutcome(incident.id, {
       actualMetrics: { powerDevPct: 8.0, vibrationMmS: 5.0, cycleTimeSec: 130 },
     });
     expect(result.verification!.passed).toBe(false);
@@ -153,20 +156,20 @@ describe('incidentService', () => {
   });
 
   it('verifyOutcome throws if no simulation exists', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
     await expect(
-      verifyOutcome(incident.id, { actualMetrics: { powerDevPct: 1 } })
+      svc.verifyOutcome(incident.id, { actualMetrics: { powerDevPct: 1 } })
     ).rejects.toThrow('No simulation to verify');
   });
 
   it('getAuditLog returns the full audit trail', async () => {
-    const incident = createIncident('CNC-03', 15.2, 'critical');
-    await investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
-    await simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
-    await verifyOutcome(incident.id, {
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
+    await svc.simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' });
+    await svc.verifyOutcome(incident.id, {
       actualMetrics: { powerDevPct: 1.5, vibrationMmS: 2.5, cycleTimeSec: 92 },
     });
-    const log = getAuditLog(incident.id);
+    const log = svc.getAuditLog(incident.id);
     expect(log).toHaveLength(5);
     expect(log.map((e) => e.action)).toEqual([
       'incident_detected',
@@ -175,6 +178,6 @@ describe('incidentService', () => {
       'action_simulated',
       'outcome_verified',
     ]);
-    expect(getAuditLog('INC-NOPE')).toEqual([]);
+    expect(svc.getAuditLog('INC-NOPE')).toEqual([]);
   });
 });

@@ -49,6 +49,7 @@ export default function MachineTable({ machines, statuses, alerts = [] }: Machin
             <th>Source</th>
             <th className="num">Value</th>
             <th>Unit</th>
+            <th className="num">Deviation</th>
             <th>Status</th>
             <th>Last update</th>
           </tr>
@@ -67,11 +68,12 @@ export default function MachineTable({ machines, statuses, alerts = [] }: Machin
                   <br />
                   <small>{m.name}</small>
                 </td>
+                <td className="num mono">{st ? st.actual.toFixed(1) : '—'}</td>
+                <td>kW</td>
                 <td className="num mono">
                   {dev > 0 ? '+' : ''}
-                  {dev.toFixed(1)}
+                  {dev.toFixed(1)}%
                 </td>
-                <td>%</td>
                 <td>
                   <span className="stc">
                     <span className={`st ${stClass}`} />

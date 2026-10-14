@@ -114,7 +114,7 @@ describe('MonitoringView', () => {
       </MemoryRouter>
     );
     await waitFor(() => {
-      expect(screen.getByText('+1152.1')).toBeInTheDocument();
+      expect(screen.getByText('+1152.1%')).toBeInTheDocument();
     });
   });
 

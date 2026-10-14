@@ -237,7 +237,7 @@ export function MachineView() {
                 <b style={{ color: 'var(--fg)' }}>Incident {incident.id} open</b>
                 Investigation, interventions, verification and audit trail for this machine live on its incident page.
                 <div>
-                  <Link className="primary" to={`/incident/${incident.id}`} style={{ textDecoration: 'none' }}>
+                  <Link className="primary" to={`/incident/${incident.id}?tab=${tab}`} style={{ textDecoration: 'none' }}>
                     Open incident
                   </Link>
                 </div>

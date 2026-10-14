@@ -105,6 +105,18 @@ export function getIncidentById(id: string): Incident | null {
   return incidents.get(id) || null;
 }
 
+// An incident is still "live" (not yet resolved) in any of these statuses.
+const OPEN_STATUSES: Incident['status'][] = ['open', 'investigating', 'action_taken'];
+
+export function getOpenIncidentForMachine(machineId: string): Incident | null {
+  for (const incident of incidents.values()) {
+    if (incident.machineId === machineId && OPEN_STATUSES.includes(incident.status)) {
+      return incident;
+    }
+  }
+  return null;
+}
+
 export async function investigateIncident(
   incidentId: string,
   context: { machineId: string; devPct: number; signals: Record<string, number> }
@@ -229,8 +241,15 @@ export function getAuditLog(incidentId: string): AuditEntry[] {
   return incident.auditLog;
 }
 
-// Create a new incident (called by alert system)
+// Create a new incident (called by alert system). Reuses the machine's
+// existing open incident instead of creating a duplicate — a restart that
+// forgets the in-memory alert dedup set (see alertService) would otherwise
+// spawn a fresh incident every time the threshold check re-fires for the
+// same ongoing problem.
 export function createIncident(machineId: string, devPct: number, severity: 'warning' | 'critical'): Incident {
+  const existing = getOpenIncidentForMachine(machineId);
+  if (existing) return existing;
+
   const machine = getMachineById(machineId);
   const id = `INC-${Date.now().toString(36).toUpperCase()}`;
 

@@ -134,7 +134,7 @@ describe('MachineView', () => {
     renderMachineView();
     await waitFor(() => {
       expect(screen.getAllByText('CNC Mill 03').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('+1152.1')).toBeInTheDocument();
+      expect(screen.getByText('+1152.1%')).toBeInTheDocument();
     });
   });
 

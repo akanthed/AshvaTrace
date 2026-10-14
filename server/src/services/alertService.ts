@@ -1,6 +1,6 @@
 import { getMachines, getMachineStatus } from './machineService';
 import { createIncident } from './incidentService';
-import { upsertAlert } from './bigqueryService';
+import { upsertAlert, queryAlerts, AlertRow } from './bigqueryService';
 
 interface Alert {
   id: string;
@@ -15,6 +15,36 @@ interface Alert {
 }
 
 const alerts: Map<string, Alert> = new Map();
+
+// Load persisted alerts from BigQuery into the in-memory store on boot so a
+// server restart doesn't forget which machine+severity combos are already
+// alerted (which would otherwise defeat checkThresholds's dedup check and
+// let it recreate an incident for an already-ongoing problem).
+export async function loadPersistedAlerts(): Promise<void> {
+  let rows: AlertRow[] = [];
+  try {
+    rows = await queryAlerts();
+  } catch {
+    return;
+  }
+  for (const row of rows) {
+    if (alerts.has(row.id)) continue;
+    alerts.set(row.id, {
+      id: row.id,
+      machineId: row.machine_id,
+      machineName: row.machine_name,
+      severity: row.severity as Alert['severity'],
+      devPct: row.dev_pct,
+      message: row.message,
+      timestamp: row.timestamp,
+      acknowledged: row.acknowledged,
+      incidentId: row.incident_id ?? undefined,
+    });
+  }
+  if (rows.length > 0) {
+    console.log(`[Init] Loaded ${rows.length} persisted alerts from BigQuery`);
+  }
+}
 
 export function getAlerts(): Alert[] {
   return Array.from(alerts.values()).sort(
