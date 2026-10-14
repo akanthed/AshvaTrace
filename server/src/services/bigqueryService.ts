@@ -12,6 +12,15 @@ function client(): BigQuery {
 function datasetName() {
   return process.env.BIGQUERY_DATASET || 'ashvatrace';
 }
+
+// The BigQuery client returns TIMESTAMP columns as `{ value: string }`
+// wrapper objects (BigQueryTimestamp), not plain strings — passing one
+// straight into a string-typed field crashes React when rendered. Every
+// query that selects a TIMESTAMP column must unwrap it with this.
+function tsToIso(ts: unknown): string {
+  if (ts && typeof ts === 'object' && 'value' in (ts as any)) return (ts as any).value;
+  return ts as string;
+}
 const TABLE = 'machine_readings';
 const MACHINES_TABLE = 'machines';
 const INCIDENTS_TABLE = 'incidents';
@@ -185,7 +194,7 @@ export async function queryThresholdViolations(machineId?: string): Promise<any[
       LIMIT 100
     `;
     const [rows] = await client().query(query);
-    return rows;
+    return rows.map((r: any) => ({ ...r, timestamp: tsToIso(r.timestamp) }));
   } catch (err) {
     console.error('[BigQuery] Query failed:', err);
     return [];
@@ -401,7 +410,7 @@ export async function queryIncidents(): Promise<IncidentRow[]> {
        WHERE rn = 1
        ORDER BY detected_at DESC`
     );
-    return rows as IncidentRow[];
+    return rows.map((r: any) => ({ ...r, detected_at: tsToIso(r.detected_at), updated_at: tsToIso(r.updated_at) })) as IncidentRow[];
   } catch (err) {
     console.error('[BigQuery] queryIncidents failed:', err);
     return [];
@@ -465,7 +474,7 @@ export async function queryAlerts(): Promise<AlertRow[]> {
        WHERE rn = 1
        ORDER BY timestamp DESC`
     );
-    return rows as AlertRow[];
+    return rows.map((r: any) => ({ ...r, timestamp: tsToIso(r.timestamp), updated_at: tsToIso(r.updated_at) })) as AlertRow[];
   } catch (err) {
     console.error('[BigQuery] queryAlerts failed:', err);
     return [];
