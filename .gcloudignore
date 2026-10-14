@@ -1,0 +1,18 @@
+# Exclude node_modules, build artifacts, and dev files from Cloud Run source upload
+**/node_modules/
+**/dist/
+**/.git/
+**/*.log
+**/scratch/
+**/AshvaTrace_Pitch_Deck.pdf
+**/AshvaTrace_Project_README.md
+**/AshvaTrace_Final_Product_and_Implementation_Pack.docx
+**/prototype/
+**/TASKS.md
+**/CLAUDE.md
+**/.impeccable/
+**/e2e/
+**/*.test.ts
+**/__tests__/
+**/playwright.config.ts
+**/vitest.config.ts
