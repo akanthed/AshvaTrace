@@ -43,6 +43,7 @@ vi.mock('../utils/ai', () => ({
 }));
 
 import { initShiftData } from '../services/machineService';
+import * as aiMock from '../utils/ai';
 
 // The incident store is module-level and persists across tests, so reset it
 // between tests by re-importing a fresh module instance (same pattern as
@@ -101,6 +102,20 @@ describe('incidentService', () => {
     );
   });
 
+  it('investigateIncident reverts to open and records the failure when the AI call fails (never substitutes canned hypotheses)', async () => {
+    vi.mocked(aiMock.investigate).mockRejectedValueOnce(new Error('Vertex AI unavailable'));
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+
+    await expect(
+      svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} })
+    ).rejects.toThrow('Vertex AI unavailable');
+
+    const after = svc.getIncidentById(incident.id)!;
+    expect(after.status).toBe('open');
+    expect(after.hypotheses).toEqual([]);
+    expect(after.auditLog.map((e) => e.action)).toEqual(['incident_detected', 'investigation_started', 'investigation_failed']);
+  });
+
   it('simulateAction stores the simulation result', async () => {
     const incident = svc.createIncident('CNC-03', 15.2, 'critical');
     await svc.investigateIncident(incident.id, {
@@ -128,6 +143,21 @@ describe('incidentService', () => {
     await expect(
       svc.simulateAction(incident.id, { hypothesisId: 'HYP-99', action: 'x' })
     ).rejects.toThrow('Hypothesis not found');
+  });
+
+  it('simulateAction does not advance status or store a result when the AI call fails', async () => {
+    const incident = svc.createIncident('CNC-03', 15.2, 'critical');
+    await svc.investigateIncident(incident.id, { machineId: 'CNC-03', devPct: 15.2, signals: {} });
+    vi.mocked(aiMock.simulate).mockRejectedValueOnce(new Error('Vertex AI unavailable'));
+
+    await expect(
+      svc.simulateAction(incident.id, { hypothesisId: 'HYP-1', action: 'Replace spindle bearing' })
+    ).rejects.toThrow('Vertex AI unavailable');
+
+    const after = svc.getIncidentById(incident.id)!;
+    expect(after.status).toBe('investigating');
+    expect(after.simulation).toBeUndefined();
+    expect(after.auditLog.some((e) => e.action === 'simulation_failed')).toBe(true);
   });
 
   it('verifyOutcome passes when metrics are within range', async () => {

@@ -142,15 +142,17 @@ export function getMachineStatus(id: string) {
   };
 }
 
-// Live-demo state: tracks whether the machine is currently in a "spike"
+// Live-demo state: tracks whether each machine is currently in a "spike"
 // episode (a temporary excursion into warning/critical territory) so the
-// alert + incident pipeline fires naturally as the live data moves.
-let liveSpikeRemaining = 0;
+// alert + incident pipeline fires naturally as the live data moves. Keyed
+// per-machine so multiple machines ticking live don't share one spike timer.
+const liveSpikeRemaining = new Map<string, number>();
 
 // Append a new "live" sample to a machine using a bounded random walk around
 // its current values, with occasional spikes that push the deviation into
-// warning/critical territory. This makes one machine visibly change in real
-// time for the demo AND triggers the existing alert/incident pipeline.
+// warning/critical territory. Called per-machine so every machine's trend
+// chart moves over time instead of only one looking live while the rest
+// stay frozen at their seeded values.
 //
 // The walk is mean-reverting so it stays plausible between spikes. A spike
 // lasts a few ticks, then the machine recovers back toward normal.
@@ -162,16 +164,21 @@ export function tickLiveSample(id: string): { machineId: string; sample: Sample;
 
   const latest = machine.series[machine.series.length - 1];
 
-  // Decide spike state. If not currently spiking, start one occasionally
-  // (~1 in 12 ticks) so the demo shows a fault every ~30s or so.
+  // Decide spike state. If not currently spiking, start one occasionally.
+  // Odds are per-machine but all machines tick together now, so this is
+  // divided down from the original 1-in-12 (tuned for a single machine) to
+  // keep the same overall "a fault every ~30s or so" demo pacing now that
+  // every machine rolls the dice each tick.
+  let remaining = liveSpikeRemaining.get(id) ?? 0;
   let spiked = false;
-  if (liveSpikeRemaining > 0) {
-    liveSpikeRemaining -= 1;
+  if (remaining > 0) {
+    remaining -= 1;
     spiked = true;
-  } else if (Math.random() < 1 / 12) {
-    liveSpikeRemaining = 4 + Math.floor(Math.random() * 4); // 4-7 ticks
+  } else if (Math.random() < 1 / 72) {
+    remaining = 4 + Math.floor(Math.random() * 4); // 4-7 ticks
     spiked = true;
   }
+  liveSpikeRemaining.set(id, remaining);
 
   // Mean-reverting random walk: pull back toward expected, add a random kick.
   const pull = (latest.expected - latest.actual) * 0.15;

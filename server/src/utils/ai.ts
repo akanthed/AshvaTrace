@@ -120,41 +120,45 @@ export interface VerificationResult {
   metrics: Record<string, number>;
 }
 
-// AI proposes hypotheses
+// AI proposes hypotheses. Throws on failure (bad auth, network error, model
+// returned unparseable text) instead of silently substituting canned
+// content — a judge/user seeing the same 3 hypotheses every time an API
+// call hiccups is indistinguishable from fake AI, which is worse than
+// surfacing the failure. Callers (incidentService) are responsible for
+// recording the failure and letting the user retry.
 export async function investigate(context: {
   machineId: string;
   devPct: number;
   signals: Record<string, number>;
 }): Promise<Hypothesis[]> {
-  const prompt = `You are an industrial maintenance AI. A machine "${context.machineId}" shows a power deviation of ${context.devPct}%.
-Signals: ${JSON.stringify(context.signals)}
+  const prompt = `You are an industrial maintenance AI investigating a CNC/manufacturing machine fault.
 
-Generate 3-5 ranked hypotheses for the root cause. For each:
-- title: short name
-- confidence: 0-100
-- evidenceFor: 2-3 bullet points
-- evidenceAgainst: 1-2 bullet points
+Machine: "${context.machineId}"
+Power deviation from expected baseline: ${context.devPct}%
+Live sensor readings: ${JSON.stringify(context.signals)}
+(powerDevPct = % actual power is above/below the expected baseline for this machine; vibration is in mm/s RMS; cycleTime is seconds per part; typical healthy values are vibration < 3 mm/s and cycleTime within 10% of baseline)
+
+Generate 3-5 ranked hypotheses for the root cause of this deviation, grounded specifically in the numbers above — do not give generic advice that would apply to any machine. For each hypothesis:
+- title: short, specific name for the failure mode
+- confidence: 0-100, calibrated so multiple plausible causes don't all score above 80
+- evidenceFor: 2-3 bullet points that cite the actual numbers above
+- evidenceAgainst: 1-2 bullet points explaining what would argue against this cause
 
 Respond with ONLY a JSON array, no markdown, no explanation.`;
 
-  try {
-    const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 1024, ...NO_THINKING });
-    const parsed = extractJson(text);
-    const list = Array.isArray(parsed) ? parsed : [parsed];
-    return list.map((h: any, i: number) => ({
-      id: `HYP-${i + 1}`,
-      title: h.title || `Hypothesis ${i + 1}`,
-      confidence: h.confidence || 50,
-      evidenceFor: h.evidenceFor || [],
-      evidenceAgainst: h.evidenceAgainst || [],
-    }));
-  } catch (err) {
-    console.error('[AI] Investigation failed, using fallback:', err);
-    return fallbackHypotheses();
-  }
+  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 1024, ...NO_THINKING });
+  const parsed = extractJson(text);
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list.map((h: any, i: number) => ({
+    id: `HYP-${i + 1}`,
+    title: h.title || `Hypothesis ${i + 1}`,
+    confidence: h.confidence || 50,
+    evidenceFor: h.evidenceFor || [],
+    evidenceAgainst: h.evidenceAgainst || [],
+  }));
 }
 
-// AI simulates intervention
+// AI simulates intervention. Throws on failure — see investigate() above.
 export async function simulate(params: {
   machineId: string;
   hypothesis: string;
@@ -164,27 +168,18 @@ export async function simulate(params: {
 Proposed action: "${params.action}"
 
 Predict the outcome if this action is taken:
-- predictedOutcome: 1-2 sentences
+- predictedOutcome: 1-2 sentences, specific to this machine and action
 - confidence: 0-100
 
 Respond with ONLY a JSON object, no markdown, no explanation.`;
 
-  try {
-    const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 256, ...NO_THINKING });
-    const parsed = extractJson(text) as any;
-    return {
-      action: params.action,
-      predictedOutcome: parsed.predictedOutcome || 'Deviation should reduce to normal range',
-      confidence: parsed.confidence || 70,
-    };
-  } catch (err) {
-    console.error('[AI] Simulation failed, using fallback:', err);
-    return {
-      action: params.action,
-      predictedOutcome: 'Deviation should reduce to within 2% of expected',
-      confidence: 70,
-    };
-  }
+  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 256, ...NO_THINKING });
+  const parsed = extractJson(text) as any;
+  return {
+    action: params.action,
+    predictedOutcome: parsed.predictedOutcome || 'Deviation should reduce to normal range',
+    confidence: parsed.confidence || 70,
+  };
 }
 
 // DETERMINISTIC verification (NOT AI) — this is the core differentiator
@@ -213,34 +208,4 @@ export function verify(
       cycleTimeSec: Math.round(cycleTime * 10) / 10,
     },
   };
-}
-
-// Fallback when AI is unavailable
-function fallbackHypotheses(): Hypothesis[] {
-  return [
-    {
-      id: 'HYP-1',
-      title: 'Tool wear / spindle bearing degradation',
-      confidence: 72,
-      evidenceFor: [
-        'Gradual power increase over 45+ min matches bearing wear curve',
-        'Vibration RMS trending up in same window',
-      ],
-      evidenceAgainst: ['No sudden spike (rules out tool break)'],
-    },
-    {
-      id: 'HYP-2',
-      title: 'Workpiece material variation (harder batch)',
-      confidence: 55,
-      evidenceFor: ['Cycle time slightly elevated', 'Power deviation correlates with feed rate'],
-      evidenceAgainst: ['No material change logged in MES'],
-    },
-    {
-      id: 'HYP-3',
-      title: 'Coolant flow reduction',
-      confidence: 40,
-      evidenceFor: ['Power increase consistent with reduced cooling efficiency'],
-      evidenceAgainst: ['Coolant pump pressure nominal'],
-    },
-  ];
 }

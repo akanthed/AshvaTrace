@@ -149,8 +149,24 @@ export async function investigateIncident(
     },
   };
 
-  // Call AI for hypothesis generation
-  const hypotheses = await investigate(enrichedContext);
+  // Call AI for hypothesis generation. On failure, revert to 'open' (not
+  // stuck labeled "investigating" with no hypotheses) and record the real
+  // failure in the audit log — never substitute canned content for a failed
+  // call, since that would be indistinguishable from genuine AI output.
+  let hypotheses;
+  try {
+    hypotheses = await investigate(enrichedContext);
+  } catch (err: any) {
+    incident.status = 'open';
+    incident.auditLog.push({
+      timestamp: new Date().toISOString(),
+      actor: 'system',
+      action: 'investigation_failed',
+      details: `AI investigation failed: ${err.message || err}`,
+    });
+    persistIncident(incident);
+    throw err;
+  }
   incident.hypotheses = hypotheses;
 
   incident.auditLog.push({
@@ -175,14 +191,27 @@ export async function simulateAction(
   if (!hypothesis) throw new Error('Hypothesis not found');
 
   incident.selectedHypothesis = body.hypothesisId;
-  incident.status = 'action_taken';
 
-  // Call AI for simulation
-  const simulation = await simulate({
-    machineId: incident.machineId,
-    hypothesis: hypothesis.title,
-    action: body.action,
-  });
+  // Call AI for simulation. On failure, don't advance status or store a
+  // simulation result — same honesty principle as investigateIncident.
+  let simulation;
+  try {
+    simulation = await simulate({
+      machineId: incident.machineId,
+      hypothesis: hypothesis.title,
+      action: body.action,
+    });
+  } catch (err: any) {
+    incident.auditLog.push({
+      timestamp: new Date().toISOString(),
+      actor: 'system',
+      action: 'simulation_failed',
+      details: `AI simulation failed: ${err.message || err}`,
+    });
+    persistIncident(incident);
+    throw err;
+  }
+  incident.status = 'action_taken';
   incident.simulation = simulation;
 
   incident.auditLog.push({

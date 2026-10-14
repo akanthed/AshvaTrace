@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -8,6 +9,7 @@ import {
   Legend,
   ReferenceLine,
   ResponsiveContainer,
+  Brush,
 } from 'recharts';
 import type { Sample } from '../types';
 
@@ -19,15 +21,34 @@ interface Props {
 }
 
 export function TrendsChart({ series, warningThreshold, criticalThreshold }: Props) {
-  const data = series.map((s) => ({
-    time: s.timestamp,
-    actual: s.actual,
-    expected: s.expected,
-    deviation: ((s.actual - s.expected) / s.expected) * 100,
-  }));
+  const data = useMemo(
+    () =>
+      series.map((s) => ({
+        time: s.timestamp,
+        actual: s.actual,
+        expected: s.expected,
+        deviation: ((s.actual - s.expected) / s.expected) * 100,
+      })),
+    [series]
+  );
+
+  // Brush gives drag-to-zoom on the time axis: dragging its handles narrows
+  // the main chart to that range, the "Reset zoom" button below snaps it
+  // back out to the full series.
+  const [brushRange, setBrushRange] = useState<{ startIndex?: number; endIndex?: number }>({});
+  const isZoomed = brushRange.startIndex !== undefined || brushRange.endIndex !== undefined;
 
   return (
     <div className="chart-container" style={{ width: '100%', height: '100%', minHeight: 280 }}>
+      {isZoomed && (
+        <button
+          className="tab"
+          style={{ marginBottom: 6 }}
+          onClick={() => setBrushRange({ startIndex: 0, endIndex: data.length - 1 })}
+        >
+          Reset zoom
+        </button>
+      )}
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 10 }}>
           <CartesianGrid stroke="#30363d" strokeDasharray="3 3" />
@@ -86,6 +107,16 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
               label={{ value: 'Critical', fill: '#f85149', fontSize: 10, position: 'right' }}
             />
           )}
+          <Brush
+            dataKey="time"
+            height={24}
+            stroke="#f39200"
+            fill="#161b22"
+            travellerWidth={8}
+            startIndex={brushRange.startIndex}
+            endIndex={brushRange.endIndex}
+            onChange={(range) => setBrushRange(range)}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

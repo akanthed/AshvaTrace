@@ -99,34 +99,20 @@ describe('utils/ai', () => {
       expect(hypotheses[0].evidenceAgainst).toEqual([]);
     });
 
-    it('returns fallback hypotheses when the API is unavailable', async () => {
+    it('throws when the API is unavailable (never substitutes canned content)', async () => {
       mockShouldError.value = true;
 
-      const hypotheses = await investigate({
-        machineId: 'CNC-03',
-        devPct: 15,
-        signals: {},
-      });
-
-      expect(hypotheses).toHaveLength(3);
-      expect(hypotheses[0].id).toBe('HYP-1');
-      expect(hypotheses[0].title).toBe('Tool wear / spindle bearing degradation');
-      expect(hypotheses[0].confidence).toBe(72);
-      expect(hypotheses[0].evidenceFor.length).toBeGreaterThan(0);
-      expect(hypotheses[0].evidenceAgainst.length).toBeGreaterThan(0);
+      await expect(
+        investigate({ machineId: 'CNC-03', devPct: 15, signals: {} })
+      ).rejects.toThrow('network down');
     });
 
-    it('returns fallback hypotheses when the response is invalid JSON', async () => {
+    it('throws when the response is invalid JSON (never substitutes canned content)', async () => {
       mockResponseText.value = 'not json at all';
 
-      const hypotheses = await investigate({
-        machineId: 'CNC-03',
-        devPct: 15,
-        signals: {},
-      });
-
-      expect(hypotheses).toHaveLength(3);
-      expect(hypotheses[0].id).toBe('HYP-1');
+      await expect(
+        investigate({ machineId: 'CNC-03', devPct: 15, signals: {} })
+      ).rejects.toThrow('No valid JSON in response');
     });
   });
 
@@ -150,18 +136,12 @@ describe('utils/ai', () => {
       });
     });
 
-    it('returns a deterministic fallback when the API fails', async () => {
+    it('throws when the API fails (never substitutes canned content)', async () => {
       mockShouldError.value = true;
 
-      const result = await simulate({
-        machineId: 'CNC-03',
-        hypothesis: 'Bearing wear',
-        action: 'Replace bearing',
-      });
-
-      expect(result.action).toBe('Replace bearing');
-      expect(result.predictedOutcome).toBe('Deviation should reduce to within 2% of expected');
-      expect(result.confidence).toBe(70);
+      await expect(
+        simulate({ machineId: 'CNC-03', hypothesis: 'Bearing wear', action: 'Replace bearing' })
+      ).rejects.toThrow('network down');
     });
   });
 

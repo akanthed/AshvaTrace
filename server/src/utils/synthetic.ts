@@ -55,13 +55,17 @@ const N = 2400; // 2400 samples
 const DT = 12; // 12 seconds per sample
 const SEED = 4207;
 
+// noiseStd/cyclePeriods/cyclePhase give each machine a visually distinct
+// trend shape (different wobble amplitude and a different number/offset of
+// load cycles across the shift) instead of all 6 looking like the same
+// wiggly line shifted up/down by `base` alone.
 const MACHINE_DEFS = [
-  { id: 'CNC-01', name: 'CNC Mill 01', type: 'milling', base: 45, warning: 5, critical: 10 },
-  { id: 'CNC-02', name: 'CNC Mill 02', type: 'milling', base: 42, warning: 5, critical: 10 },
-  { id: 'CNC-03', name: 'CNC Mill 03', type: 'milling', base: 48, warning: 5, critical: 10 },
-  { id: 'CNC-04', name: 'CNC Lathe 04', type: 'turning', base: 38, warning: 5, critical: 10 },
-  { id: 'GRD-01', name: 'Grinder 01', type: 'grinding', base: 30, warning: 5, critical: 10 },
-  { id: 'PRS-01', name: 'Press 01', type: 'stamping', base: 55, warning: 5, critical: 10 },
+  { id: 'CNC-01', name: 'CNC Mill 01', type: 'milling', base: 45, warning: 5, critical: 10, noiseStd: 0.8, cyclePeriods: 1, cyclePhase: 0 },
+  { id: 'CNC-02', name: 'CNC Mill 02', type: 'milling', base: 42, warning: 5, critical: 10, noiseStd: 1.4, cyclePeriods: 3, cyclePhase: 1.1 },
+  { id: 'CNC-03', name: 'CNC Mill 03', type: 'milling', base: 48, warning: 5, critical: 10, noiseStd: 0.8, cyclePeriods: 1, cyclePhase: 0 },
+  { id: 'CNC-04', name: 'CNC Lathe 04', type: 'turning', base: 38, warning: 5, critical: 10, noiseStd: 0.5, cyclePeriods: 6, cyclePhase: 2.4 },
+  { id: 'GRD-01', name: 'Grinder 01', type: 'grinding', base: 30, warning: 5, critical: 10, noiseStd: 1.8, cyclePeriods: 2, cyclePhase: 3.6 },
+  { id: 'PRS-01', name: 'Press 01', type: 'stamping', base: 55, warning: 5, critical: 10, noiseStd: 2.2, cyclePeriods: 4, cyclePhase: 0.6 },
 ];
 
 // CNC-03 has a scripted incident: drift starts at sample 960
@@ -76,20 +80,27 @@ interface MachineDef {
   base: number;
   warning: number;
   critical: number;
+  noiseStd?: number;
+  cyclePeriods?: number;
+  cyclePhase?: number;
 }
 
 export function generateMachineSeries(def: MachineDef, rng: () => number = mulberry32(SEED)): Sample[] {
   const series: Sample[] = [];
+  const noiseStd = def.noiseStd ?? 0.8;
+  const cyclePeriods = def.cyclePeriods ?? 1;
+  const cyclePhase = def.cyclePhase ?? 0;
 
   for (let i = 0; i < N; i++) {
     const hour = 6 + (i * DT) / 3600;
     const timestamp = `${String(Math.floor(hour)).padStart(2, '0')}:${String(Math.floor((hour % 1) * 60)).padStart(2, '0')}`;
 
-    // Base expected power (slight diurnal variation)
-    const expected = def.base + Math.sin((i / N) * Math.PI * 2) * 2;
+    // Base expected power (diurnal variation): cyclePeriods/cyclePhase give
+    // each machine a different wobble shape so trend charts look distinct.
+    const expected = def.base + Math.sin((i / N) * Math.PI * 2 * cyclePeriods + cyclePhase) * 2;
 
     // Actual power: expected + noise
-    let actual = gauss(rng, expected, 0.8);
+    let actual = gauss(rng, expected, noiseStd);
 
     // CNC-03: tool change event at 650 (brief spike)
     if (def.id === 'CNC-03' && i >= TOOL_CHANGE && i < TOOL_CHANGE + 20) {

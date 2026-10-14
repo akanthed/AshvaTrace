@@ -67,6 +67,7 @@ export function IncidentView() {
 
   const handleInvestigate = async () => {
     setInvestigating(true);
+    setInvestigateError(null);
     try {
       // Pull the machine's REAL current readings so the AI reasons over live
       // signal data instead of hardcoded constants.
@@ -90,8 +91,11 @@ export function IncidentView() {
         signals,
       });
       setIncident(result);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      // The AI call failed — show the failure honestly rather than ever
+      // substituting canned hypotheses, which would be indistinguishable
+      // from a real (if mediocre) AI result.
+      setInvestigateError(err.message || 'AI investigation failed');
     } finally {
       setInvestigating(false);
     }
@@ -99,14 +103,18 @@ export function IncidentView() {
 
   const handleSimulate = async () => {
     if (!selectedHyp) return;
+    setSimulating(true);
+    setSimulateError(null);
     try {
       const result = await api.simulateAction(incident.id, {
         hypothesisId: selectedHyp,
         action: action || 'Replace worn component and recalibrate',
       });
       setIncident(result);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setSimulateError(err.message || 'AI simulation failed');
+    } finally {
+      setSimulating(false);
     }
   };
 
@@ -154,9 +162,17 @@ export function IncidentView() {
           {tab === 'investigate' && (
             <>
               {incident.hypotheses.length === 0 && (
-                <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start' }}>
-                  {investigating ? 'Asking AI for likely causes…' : 'Find likely causes'}
-                </button>
+                <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
+                  <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start' }}>
+                    {investigating ? 'Asking AI for likely causes…' : investigateError ? 'Retry investigation' : 'Find likely causes'}
+                  </button>
+                  {investigateError && (
+                    <div className="empty" style={{ borderColor: 'var(--crit)' }}>
+                      <b style={{ color: 'var(--crit)' }}>AI investigation failed</b>
+                      {investigateError}
+                    </div>
+                  )}
+                </div>
               )}
 
               {incident.hypotheses.length > 0 && (
@@ -202,9 +218,15 @@ export function IncidentView() {
                       />
                     </label>
                   </div>
-                  <button className="primary" onClick={handleSimulate}>
-                    Preview what this fix should do
+                  <button className="primary" onClick={handleSimulate} disabled={simulating}>
+                    {simulating ? 'Asking AI…' : simulateError ? 'Retry' : 'Preview what this fix should do'}
                   </button>
+                  {simulateError && (
+                    <div className="empty" style={{ borderColor: 'var(--crit)', marginTop: 10 }}>
+                      <b style={{ color: 'var(--crit)' }}>AI simulation failed</b>
+                      {simulateError}
+                    </div>
+                  )}
                 </div>
               )}
 

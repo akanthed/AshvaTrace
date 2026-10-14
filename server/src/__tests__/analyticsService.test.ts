@@ -63,13 +63,18 @@ describe('analyticsService', () => {
       }
     });
 
-    it('severity is critical only when deviation exceeds critical threshold', () => {
+    it('severity is critical only when deviation meets or exceeds critical threshold', () => {
+      // statusForDeviation classifies on the raw (unrounded) devPct, but
+      // v.devPct here is rounded to 1 decimal for display — a raw value of
+      // e.g. 9.96 (warning) can display as 10.0, and 10.04 (critical) also
+      // displays as 10.0. So the boundary check needs a small tolerance
+      // rather than a strict >/< 10 on the rounded figure.
       const violations = getThresholdViolations();
       for (const v of violations) {
         if (v.severity === 'critical') {
-          expect(Math.abs(v.devPct)).toBeGreaterThan(10);
+          expect(Math.abs(v.devPct)).toBeGreaterThanOrEqual(9.95);
         } else {
-          expect(Math.abs(v.devPct)).toBeLessThanOrEqual(10);
+          expect(Math.abs(v.devPct)).toBeLessThanOrEqual(10.05);
         }
       }
     });

@@ -4,7 +4,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { routes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
-import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus } from './services/machineService';
+import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus, getMachines } from './services/machineService';
 import { checkThresholds, publishAlert, loadPersistedAlerts } from './services/alertService';
 import { loadPersistedIncidents, investigateIncident, getIncidentById } from './services/incidentService';
 import { broadcastEvent } from './routes/sseRoutes';
@@ -66,28 +66,31 @@ async function start() {
     }
   }, 5000);
 
-  // Live demo feed: append a new random-walk sample to the demo machine every
-  // 3 seconds and push it to connected clients over SSE. The frontend's 5s
-  // status poll also picks these up, so the machine visibly moves in real time.
+  // Live demo feed: append a new random-walk sample to every machine every
+  // 3 seconds and push each to connected clients over SSE, so every trend
+  // chart moves over time instead of only one machine looking live while
+  // the rest stay frozen at their seeded values.
   //
-  // When the live data spikes into warning/critical territory, the threshold
-  // checker (below) creates alerts + incidents, and we auto-run the AI
-  // investigation so the full "AI proposes" loop happens on its own for the demo.
-  const LIVE_DEMO_MACHINE = process.env.LIVE_DEMO_MACHINE || 'CNC-01';
+  // When a machine's live data spikes into warning/critical territory, the
+  // threshold checker (below) creates alerts + incidents, and we auto-run
+  // the AI investigation so the full "AI proposes" loop happens on its own.
   const AUTO_INVESTIGATE = process.env.LIVE_AUTO_INVESTIGATE !== 'false'; // default on
   const investigating = new Set<string>(); // incident ids currently being investigated
 
   setInterval(async () => {
-    const tick = tickLiveSample(LIVE_DEMO_MACHINE);
-    if (!tick) return;
+    for (const m of getMachines()) {
+      const tick = tickLiveSample(m.id);
+      if (!tick) continue;
 
-    // Broadcast the new sample AND the resulting status so the frontend can
-    // update the machine card and its status badge instantly.
-    const status = getMachineStatus(LIVE_DEMO_MACHINE);
-    broadcastEvent({ type: 'liveSample', machineId: tick.machineId, sample: tick.sample, status });
+      // Broadcast the new sample AND the resulting status so the frontend can
+      // update the machine card and its status badge instantly.
+      const status = getMachineStatus(m.id);
+      broadcastEvent({ type: 'liveSample', machineId: tick.machineId, sample: tick.sample, status });
+    }
 
-    // Run the threshold check immediately so alerts/incidents fire promptly
-    // (the 5s interval also runs, but this makes the demo snappier).
+    // Run the threshold check once per tick (across all machines) so
+    // alerts/incidents fire promptly (the 5s interval also runs, but this
+    // makes the demo snappier).
     const newAlerts = checkThresholds();
     for (const alert of newAlerts) {
       console.log(`[Alert] ${alert.severity.toUpperCase()}: ${alert.message}`);
