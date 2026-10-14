@@ -40,7 +40,7 @@ async function main() {
     steps: [
       {
         name: "gcr.io/cloud-builders/docker",
-        args: ["build", "-t", `gcr.io/${PROJECT_ID}/${SERVICE_NAME}:latest`, "."],
+        args: ["build", "-t", `gcr.io/${PROJECT_ID}/${SERVICE_NAME}:latest`, "-f", "Dockerfile", "."],
       },
       {
         name: "gcr.io/cloud-builders/docker",
