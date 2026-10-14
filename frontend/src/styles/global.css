@@ -1436,11 +1436,6 @@ th.num {
   opacity: 0.4;
   cursor: default;
 }
-  display: grid;
-  gap: 6px;
-  font-size: 13px;
-  text-align: left;
-}
 
 .mode.on {
   border-color: var(--accent);
