@@ -1,0 +1,10 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'gcr.io/ashvatrace/ashvatrace:latest', '.']
+    id: 'build'
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/ashvatrace/ashvatrace:latest']
+    id: 'push'
+    waitFor: ['build']
+images:
+  - 'gcr.io/ashvatrace/ashvatrace:latest'

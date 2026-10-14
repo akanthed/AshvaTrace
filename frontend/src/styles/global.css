@@ -1540,6 +1540,53 @@ table.thr input {
   color: var(--muted);
 }
 
+.loading-full {
+  min-height: 60vh;
+  width: 100%;
+}
+
+.spinner-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.spinner-msg {
+  font-size: 14px;
+  color: var(--fg);
+  font-weight: 500;
+  transition: opacity 0.3s;
+}
+
+.spinner-sub {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
 /* responsive */
 @media (max-width: 1050px) {
   .split {

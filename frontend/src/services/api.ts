@@ -1,4 +1,4 @@
-import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact } from '../types';
+import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact, VisionInspection } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -69,7 +69,7 @@ export const api = {
     fetchJson<DashboardLayout>(`/dashboard-layout/${machineId}`, { method: 'PUT', body: JSON.stringify(body) }),
 
   // Vision AI tool inspection
-  inspectTool: (machineId: string) => fetchJson<VisionInspection>(`/api/machines/${machineId}/inspect-tool`, { method: 'POST' }),
+  inspectTool: (machineId: string) => fetchJson<VisionInspection>(`/machines/${machineId}/inspect-tool`, { method: 'POST' }),
 };
 
 // SSE connection for real-time alerts

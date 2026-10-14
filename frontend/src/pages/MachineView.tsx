@@ -6,6 +6,7 @@ import { TrendsChart } from '../components/TrendsChart';
 import { PlantManager } from '../components/PlantManager';
 import { DashboardCanvas } from '../components/DashboardCanvas';
 import { ThresholdPanel } from '../components/ThresholdPanel';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import MonitoringView from './MonitoringView';
 
 type TabKey = 'monitoring' | 'dashboard' | 'threshold' | 'trends' | 'plant' | 'investigate' | 'actions' | 'verify' | 'audit';
@@ -145,7 +146,7 @@ export function MachineView() {
     return () => disconnect();
   }, [id]);
 
-  if (loading) return <div className="view">Loading machine…</div>;
+  if (loading) return <LoadingSpinner label="Loading machine data…" />;
   if (!machine || !status) return <div className="view">Machine not found</div>;
 
   const dev = status.devPct;

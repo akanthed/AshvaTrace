@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMachines } from '../hooks/useMachines';
 import { useAlerts } from '../hooks/useAlerts';
 import MachineTable from '../components/MachineTable';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { api } from '../services/api';
 import type { VisionInspection } from '../types';
 
@@ -29,7 +30,7 @@ export default function MonitoringView({ machineId }: Props) {
   }
 
   if (loading) {
-    return <div className="loading">Loading monitoring data…</div>;
+    return <LoadingSpinner label="Loading monitoring data…" />;
   }
 
   const machines = machineId ? allMachines.filter((m) => m.id === machineId) : allMachines;
@@ -117,7 +118,7 @@ export default function MonitoringView({ machineId }: Props) {
             </button>
           </header>
           <div className="body">
-            {inspecting && <div className="loading">Running Vision AI analysis on tool image…</div>}
+            {inspecting && <LoadingSpinner label="Running Vision AI analysis on tool image…" full={false} />}
             {!inspecting && !inspection && (
               <p style={{ color: 'var(--muted)', fontSize: 13 }}>
                 Run a Vision AI inspection to analyze the machine's cutting tool condition from a synthetic inspection image.

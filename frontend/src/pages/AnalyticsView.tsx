@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { ShiftSummary, ThresholdViolation, CostImpact } from '../types';
 import { api } from '../services/api';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 function fmtUsd(n: number): string {
   return n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n.toFixed(0)}`;
@@ -35,7 +36,7 @@ export function AnalyticsView() {
     load();
   }, []);
 
-  if (loading) return <div className="view">Loading analytics…</div>;
+  if (loading) return <LoadingSpinner label="Loading analytics…" />;
 
   return (
     <div className="view">

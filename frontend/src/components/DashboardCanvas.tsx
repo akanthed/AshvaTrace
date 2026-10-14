@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../services/api';
 import type { DashboardLayout, MachineStatus, Thresholds } from '../types';
 import { statusForDeviation } from '../utils/thresholds';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface Props {
   machineId: string;
@@ -140,7 +141,7 @@ export function DashboardCanvas({ machineId, status, thresholds }: Props) {
     }
   };
 
-  if (loading) return <div className="prov">Loading dashboard layout…</div>;
+  if (loading) return <LoadingSpinner label="Loading dashboard layout…" full={false} />;
 
   const dev = status.devPct;
   const colorClass = devClass(dev, thresholds);

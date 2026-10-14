@@ -5,6 +5,7 @@ import { api } from '../services/api';
 import { HypothesisList } from '../components/HypothesisList';
 import { AuditLog } from '../components/AuditLog';
 import { InvestigationTrace } from '../components/InvestigationTrace';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 type TabKey = 'investigate' | 'actions' | 'verify' | 'audit';
 const TAB_KEYS: TabKey[] = ['investigate', 'actions', 'verify', 'audit'];
@@ -63,7 +64,7 @@ export function IncidentView() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="view">Loading incident…</div>;
+  if (loading) return <LoadingSpinner label="Loading incident…" />;
   if (!incident) return <div className="view">Incident not found</div>;
 
   const handleInvestigate = async () => {
