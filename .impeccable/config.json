@@ -20,6 +20,15 @@
         ],
         "createdAt": "2026-10-13T05:18:14.193Z",
         "reason": "intentional match to moneo reference UI left-border accent pattern, user is cloning that product's look"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/styles/global.css"
+        ],
+        "createdAt": "2026-10-13T11:12:25.980Z",
+        "reason": "documented in CLAUDE.md as intentional moneo left-border accent match (.inc-head/.alarmrow), same pattern already suppressed for prototype/ashvatrace-prototype.html"
       }
     ]
   }

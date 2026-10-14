@@ -35,7 +35,6 @@ async function main() {
       repoSource: {
         repoId: REPO,
         revision: BRANCH,
-        dir: "server",
       },
     },
     steps: [

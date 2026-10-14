@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/*.log
+.git
+.impeccable
+prototype
+scratch
+*.docx
+*.md
+ashvatrace-42607ad03e01.json

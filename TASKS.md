@@ -55,6 +55,20 @@ one sitting.
 - [ ] Re-deploy to Cloud Run with real AI wired in
 - [ ] Re-run end-to-end smoke test on deployed URL with real AI responses
 
+## Phase 4.5 — Live playback (monitoring feels like a live app)
+Frontend-only: drive existing deterministic array `S` with a client-side
+cursor (`st.cur`) that auto-advances on a timer instead of always showing
+`S[N-1]`. No new random data, no backend changes — same reproducible
+dataset, just revealed progressively. Investigate/Actions/Verify/Audit
+stay click-driven (not tied to the clock).
+- [x] Add `st.cur` + tick loop (setInterval, loops at end, play/pause toggle)
+- [x] Swap `S[N-1]` → `S[st.cur]` in `table()`, `dashboard()`, `threshold()`
+- [x] `chart()` plots only up to `st.cur` (keep x-axis scaled to full shift), "latest" stats use `st.cur`
+- [x] `plant()` rows (dev%, sparkline, status) derive from `st.cur`
+- [x] Gate incident pill/banner (plant row crit, machine header pill) on `st.cur >= detect`
+- [x] Add play/pause button + sim clock to top bar
+- [x] Manual check: Monitoring/Dashboard/Trends/Plant update live; Investigate/Actions/Verify/Audit unaffected; pause/resume works
+
 ## Phase 6 — Submission artifacts
 - [ ] Write pitch deck: problem, AI-proposes/code-verifies differentiator, impact numbers
 - [ ] Record 3-minute demo video using the deployed app
