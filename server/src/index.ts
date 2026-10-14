@@ -8,7 +8,7 @@ import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus,
 import { checkThresholds, publishAlert, loadPersistedAlerts } from './services/alertService';
 import { loadPersistedIncidents, investigateIncident, getIncidentById } from './services/incidentService';
 import { broadcastEvent } from './routes/sseRoutes';
-import { initBigQuery, seedBigQuery } from './services/bigqueryService';
+import { initBigQuery, seedBigQuery, seedSops } from './services/bigqueryService';
 
 dotenv.config();
 
@@ -49,6 +49,7 @@ async function start() {
   if (process.env.GCP_PROJECT_ID) {
     await initBigQuery();
     await seedBigQuery(data.machines);
+    await seedSops();
     // Load persisted machines and incidents so add/remove/update and the
     // investigation history survive a server restart.
     await loadPersistedMachines();

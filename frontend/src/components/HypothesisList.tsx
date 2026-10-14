@@ -27,6 +27,7 @@ export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
             <span className="rank">H{i + 1}</span>
             {h.title}
             <span className="pill info">Confidence: {h.confidence}%</span>
+            {h.sopRef && <span className="pill">{h.sopRef}</span>}
           </h4>
           <div className="fa">
             <div>

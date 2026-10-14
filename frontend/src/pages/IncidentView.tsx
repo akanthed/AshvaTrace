@@ -4,6 +4,7 @@ import type { Incident } from '../types';
 import { api } from '../services/api';
 import { HypothesisList } from '../components/HypothesisList';
 import { AuditLog } from '../components/AuditLog';
+import { InvestigationTrace } from '../components/InvestigationTrace';
 
 type TabKey = 'investigate' | 'actions' | 'verify' | 'audit';
 const TAB_KEYS: TabKey[] = ['investigate', 'actions', 'verify', 'audit'];
@@ -178,6 +179,9 @@ export function IncidentView() {
               {incident.hypotheses.length > 0 && (
                 <div>
                   <h4 style={{ margin: '0 0 8px' }}>Likely causes, ranked by AI</h4>
+                  {incident.investigationTrace && incident.investigationTrace.length > 0 && (
+                    <InvestigationTrace trace={incident.investigationTrace} />
+                  )}
                   <HypothesisList
                     hypotheses={incident.hypotheses}
                     selectedId={selectedHyp}

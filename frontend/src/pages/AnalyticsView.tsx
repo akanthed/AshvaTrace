@@ -1,24 +1,31 @@
 import { useState, useEffect } from 'react';
-import type { ShiftSummary, ThresholdViolation } from '../types';
+import type { ShiftSummary, ThresholdViolation, CostImpact } from '../types';
 import { api } from '../services/api';
+
+function fmtUsd(n: number): string {
+  return n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n.toFixed(0)}`;
+}
 
 export function AnalyticsView() {
   const [summary, setSummary] = useState<ShiftSummary | null>(null);
   const [violations, setViolations] = useState<ThresholdViolation[]>([]);
   const [energy, setEnergy] = useState<any>(null);
+  const [impact, setImpact] = useState<CostImpact | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, v, e] = await Promise.all([
+        const [s, v, e, c] = await Promise.all([
           api.getShiftSummary(),
           api.getThresholdViolations(),
           api.getEnergyReport(),
+          api.getCostImpact(),
         ]);
         setSummary(s);
         setViolations(v);
         setEnergy(e);
+        setImpact(c);
       } catch {
         // API not available
       } finally {
@@ -32,6 +39,52 @@ export function AnalyticsView() {
 
   return (
     <div className="view">
+      {impact && (
+        <section className="panel">
+          <header>
+            <h3>Cost impact — this shift</h3>
+            <div className="sp" />
+            <span className="prov">
+              {impact.incidentsResolved}/{impact.incidentsTotal} incidents resolved
+            </span>
+          </header>
+          <div className="body" style={{ display: 'grid', gap: 16 }}>
+            <div className="counts">
+              <div className="count">
+                <small>Downtime (out-of-band)</small>
+                <b style={{ color: 'var(--crit)' }}>{impact.downtimeMinutes} min</b>
+              </div>
+              <div className="count">
+                <small>Downtime cost</small>
+                <b style={{ color: 'var(--crit)' }}>{fmtUsd(impact.downtimeCost)}</b>
+              </div>
+              <div className="count">
+                <small>Energy waste</small>
+                <b style={{ color: 'var(--warn)' }}>{impact.energyWasteKwh} kWh</b>
+              </div>
+              <div className="count">
+                <small>MTTR (AshvaTrace)</small>
+                <b style={{ color: 'var(--ok)' }}>{impact.mttrMinutes} min</b>
+              </div>
+              <div className="count">
+                <small>MTTR (industry avg)</small>
+                <b>{impact.benchmarkMttrMinutes} min</b>
+              </div>
+              <div className="count">
+                <small>Est. savings this shift</small>
+                <b style={{ color: 'var(--ok)' }}>{fmtUsd(impact.totalSavings)}</b>
+              </div>
+            </div>
+            <p className="prov" style={{ margin: 0 }}>
+              MTTR {impact.mttrReductionPct >= 0 ? 'reduced' : 'vs'} {impact.mttrReductionPct}% vs industry
+              benchmark. Downtime cost at ${impact.assumptions.downtimeCostPerHour.toLocaleString()}/hr
+              ({impact.assumptions.source}); benchmark MTTR from {impact.assumptions.benchmarkMttrSource}.
+              Simulated data — figures are illustrative.
+            </p>
+          </div>
+        </section>
+      )}
+
       <section className="panel">
         <header>
           <h3>Shift summary</h3>

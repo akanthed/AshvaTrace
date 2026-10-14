@@ -41,7 +41,7 @@ vi.hoisted(() => {
   process.env.GCP_PROJECT_ID = 'test-project';
 });
 
-import { investigate, simulate, verify } from '../utils/ai';
+import { investigate, critiqueHypotheses, simulate, verify } from '../utils/ai';
 
 describe('utils/ai', () => {
   beforeEach(() => {
@@ -80,6 +80,7 @@ describe('utils/ai', () => {
         confidence: 80,
         evidenceFor: ['Power trending up'],
         evidenceAgainst: ['No spike'],
+        sopRef: null,
       });
       expect(hypotheses[1].id).toBe('HYP-2');
     });
@@ -113,6 +114,48 @@ describe('utils/ai', () => {
       await expect(
         investigate({ machineId: 'CNC-03', devPct: 15, signals: {} })
       ).rejects.toThrow('No valid JSON in response');
+    });
+  });
+
+  describe('critiqueHypotheses', () => {
+    const draft = [
+      { id: 'HYP-1', title: 'Bearing wear', confidence: 80, evidenceFor: ['Power trending up'], evidenceAgainst: [], sopRef: 'SOP-101' },
+      { id: 'HYP-2', title: 'Material variation', confidence: 60, evidenceFor: ['Cycle time elevated'], evidenceAgainst: [], sopRef: null },
+    ];
+
+    it('lowers confidence for hypotheses the review flags', async () => {
+      mockResponseText.value = JSON.stringify([
+        { id: 'HYP-1', confidence: 80 },
+        { id: 'HYP-2', confidence: 30 },
+      ]);
+
+      const result = await critiqueHypotheses(
+        { machineId: 'CNC-03', devPct: 15, signals: {} },
+        draft,
+        []
+      );
+
+      expect(result[0].confidence).toBe(80);
+      expect(result[1].confidence).toBe(30);
+      // Title/evidence are never rewritten by the critique step
+      expect(result[1].title).toBe('Material variation');
+    });
+
+    it('returns the original hypotheses unchanged if the critique call fails', async () => {
+      mockShouldError.value = true;
+
+      const result = await critiqueHypotheses(
+        { machineId: 'CNC-03', devPct: 15, signals: {} },
+        draft,
+        []
+      );
+
+      expect(result).toEqual(draft);
+    });
+
+    it('is a no-op on an empty hypothesis list', async () => {
+      const result = await critiqueHypotheses({ machineId: 'CNC-03', devPct: 15, signals: {} }, [], []);
+      expect(result).toEqual([]);
     });
   });
 

@@ -4,6 +4,7 @@ import {
   getThresholdViolations as fetchViolations,
   getEnergyReport as fetchEnergy,
   getMachineComparison as fetchComparison,
+  getCostImpact as fetchCostImpact,
 } from '../services/analyticsService';
 
 export async function getShiftSummary(_req: Request, res: Response) {
@@ -25,4 +26,9 @@ export async function getEnergyReport(_req: Request, res: Response) {
 export async function getMachineComparison(_req: Request, res: Response) {
   const comparison = fetchComparison();
   res.json(comparison);
+}
+
+export async function getCostImpact(_req: Request, res: Response) {
+  const impact = fetchCostImpact();
+  res.json(impact);
 }

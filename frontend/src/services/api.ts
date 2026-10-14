@@ -1,4 +1,4 @@
-import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout } from '../types';
+import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -45,6 +45,7 @@ export const api = {
     fetchJson<ThresholdViolation[]>(`/analytics/threshold-violations${machineId ? `?machineId=${machineId}` : ''}`),
   getEnergyReport: () => fetchJson<any>('/analytics/energy-report'),
   getMachineComparison: () => fetchJson<any[]>('/analytics/machine-comparison'),
+  getCostImpact: () => fetchJson<CostImpact>('/analytics/cost-impact'),
 
   // Alerts
   getAlerts: () => fetchJson<Alert[]>('/alerts'),

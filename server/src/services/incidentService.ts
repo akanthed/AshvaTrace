@@ -1,6 +1,7 @@
-import { investigate, simulate, verify } from '../utils/ai';
-import { getMachineById, getMachineStatus } from './machineService';
+import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, InvestigationTraceStep } from '../utils/ai';
+import { getMachineById, getMachineStatus, getMachineSeries } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
+import { retrieveSops, getSopById } from './sopService';
 
 interface Incident {
   id: string;
@@ -11,6 +12,7 @@ interface Incident {
   severity: 'warning' | 'critical';
   devPct: number;
   hypotheses: Hypothesis[];
+  investigationTrace?: InvestigationTraceStep[];
   selectedHypothesis?: string;
   simulation?: SimulationResult;
   verification?: VerificationResult;
@@ -23,6 +25,7 @@ interface Hypothesis {
   confidence: number;
   evidenceFor: string[];
   evidenceAgainst: string[];
+  sopRef?: string | null;
 }
 
 interface SimulationResult {
@@ -149,13 +152,82 @@ export async function investigateIncident(
     },
   };
 
-  // Call AI for hypothesis generation. On failure, revert to 'open' (not
-  // stuck labeled "investigating" with no hypotheses) and record the real
-  // failure in the audit log — never substitute canned content for a failed
-  // call, since that would be indistinguishable from genuine AI output.
+  // Deterministic retrieval (not AI): pick the SOP excerpts relevant to this
+  // incident's signals so the model reasons over real reference text instead
+  // of its own memory of what an SOP might say.
+  const sops = await retrieveSops(enrichedContext.signals);
+
+  // Agentic investigation: the model calls tools to pull REAL readings from
+  // the machine's series before forming hypotheses (see investigateAgentic
+  // in utils/ai.ts). The trace of tool calls + results is stored on the
+  // incident so the UI can show the investigation step by step. On failure,
+  // revert to 'open' and record the real failure in the audit log — never
+  // substitute canned content for a failed call.
+  const machineId = incident.machineId;
+  const toolExecutor = (name: string, args: Record<string, unknown>): unknown => {
+    const series = getMachineSeries(machineId, 0);
+    if (!series) throw new Error(`No series data for machine ${machineId}`);
+    const n = Math.min(Math.max(parseInt(String(args.samples || 60), 10) || 60, 10), 480);
+    const window = series.series.slice(-n);
+
+    switch (name) {
+      case 'get_power_window': {
+        const samples = window.map((s) => ({
+          timestamp: s.timestamp,
+          actualKw: s.actual,
+          expectedKw: s.expected,
+          devPct: Math.round(((s.actual - s.expected) / s.expected) * 1000) / 10,
+        }));
+        // Return a summary + the last 20 samples to keep the context small.
+        const devs = samples.map((s) => s.devPct);
+        return {
+          windowSamples: samples.length,
+          firstDevPct: devs[0],
+          lastDevPct: devs[devs.length - 1],
+          maxDevPct: Math.max(...devs),
+          minDevPct: Math.min(...devs),
+          trend: devs[devs.length - 1] > devs[0] + 1 ? 'rising' : devs[0] - 1 > devs[devs.length - 1] ? 'falling' : 'flat',
+          recentSamples: samples.slice(-20),
+        };
+      }
+      case 'get_vibration_stats': {
+        const vibs = window.map((s) => s.vibration);
+        const half = Math.floor(vibs.length / 2);
+        const firstAvg = vibs.slice(0, half).reduce((a, b) => a + b, 0) / half;
+        const secondAvg = vibs.slice(half).reduce((a, b) => a + b, 0) / (vibs.length - half);
+        return {
+          currentMmS: vibs[vibs.length - 1],
+          minMmS: Math.min(...vibs),
+          maxMmS: Math.max(...vibs),
+          avgMmS: Math.round((vibs.reduce((a, b) => a + b, 0) / vibs.length) * 100) / 100,
+          trendingUp: secondAvg > firstAvg * 1.1,
+          healthyBelowMmS: 3,
+        };
+      }
+      case 'get_cycle_time_trend': {
+        const times = window.map((s) => s.cycleTime);
+        const baseline = times.slice(0, Math.floor(times.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(times.length / 2);
+        const recent = times.slice(-10).reduce((a, b) => a + b, 0) / 10;
+        const ratePerSample = (recent - baseline) / 10;
+        return {
+          currentSec: times[times.length - 1],
+          baselineSec: Math.round(baseline * 10) / 10,
+          recentAvgSec: Math.round(recent * 10) / 10,
+          ratePerSampleSec: Math.round(ratePerSample * 100) / 100,
+          slowingDown: recent > baseline * 1.05,
+        };
+      }
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  };
+
   let hypotheses;
+  let trace: InvestigationTraceStep[] = [];
   try {
-    hypotheses = await investigate(enrichedContext);
+    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor);
+    hypotheses = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops);
+    trace = agentic.trace;
   } catch (err: any) {
     incident.status = 'open';
     incident.auditLog.push({
@@ -168,12 +240,13 @@ export async function investigateIncident(
     throw err;
   }
   incident.hypotheses = hypotheses;
+  incident.investigationTrace = trace;
 
   incident.auditLog.push({
     timestamp: new Date().toISOString(),
     actor: 'ai',
     action: 'hypotheses_generated',
-    details: `${hypotheses.length} hypotheses generated`,
+    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass`,
   });
 
   persistIncident(incident);
@@ -196,11 +269,15 @@ export async function simulateAction(
   // simulation result — same honesty principle as investigateIncident.
   let simulation;
   try {
-    simulation = await simulate({
-      machineId: incident.machineId,
-      hypothesis: hypothesis.title,
-      action: body.action,
-    });
+    const postActionSop = await getSopById('SOP-103');
+    simulation = await simulate(
+      {
+        machineId: incident.machineId,
+        hypothesis: hypothesis.title,
+        action: body.action,
+      },
+      postActionSop
+    );
   } catch (err: any) {
     incident.auditLog.push({
       timestamp: new Date().toISOString(),

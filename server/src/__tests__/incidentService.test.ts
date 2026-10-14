@@ -9,6 +9,7 @@ vi.mock('../utils/ai', () => ({
       confidence: 72,
       evidenceFor: ['Gradual power increase matches bearing wear curve'],
       evidenceAgainst: ['No sudden spike'],
+      sopRef: 'SOP-101',
     },
     {
       id: 'HYP-2',
@@ -16,8 +17,35 @@ vi.mock('../utils/ai', () => ({
       confidence: 55,
       evidenceFor: ['Cycle time slightly elevated'],
       evidenceAgainst: ['No material change logged'],
+      sopRef: null,
     },
   ]),
+  investigateAgentic: vi.fn(async () => ({
+    hypotheses: [
+      {
+        id: 'HYP-1',
+        title: 'Tool wear / spindle bearing degradation',
+        confidence: 72,
+        evidenceFor: ['Gradual power increase matches bearing wear curve'],
+        evidenceAgainst: ['No sudden spike'],
+        sopRef: 'SOP-101',
+      },
+      {
+        id: 'HYP-2',
+        title: 'Workpiece material variation',
+        confidence: 55,
+        evidenceFor: ['Cycle time slightly elevated'],
+        evidenceAgainst: ['No material change logged'],
+        sopRef: null,
+      },
+    ],
+    trace: [
+      { type: 'tool_call', tool: 'get_power_window', args: { samples: 60 } },
+      { type: 'tool_result', tool: 'get_power_window', result: { trend: 'rising' } },
+      { type: 'reasoning', text: 'Power is drifting up with rising vibration — consistent with wear.' },
+    ],
+  })),
+  critiqueHypotheses: vi.fn(async (_ctx: unknown, hypotheses: unknown) => hypotheses),
   simulate: vi.fn(async (params: { action: string }) => ({
     action: params.action,
     predictedOutcome: 'Deviation should reduce to within 2% of expected',
@@ -103,7 +131,7 @@ describe('incidentService', () => {
   });
 
   it('investigateIncident reverts to open and records the failure when the AI call fails (never substitutes canned hypotheses)', async () => {
-    vi.mocked(aiMock.investigate).mockRejectedValueOnce(new Error('Vertex AI unavailable'));
+    vi.mocked(aiMock.investigateAgentic).mockRejectedValueOnce(new Error('Vertex AI unavailable'));
     const incident = svc.createIncident('CNC-03', 15.2, 'critical');
 
     await expect(

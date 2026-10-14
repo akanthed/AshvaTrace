@@ -26,6 +26,7 @@ const MACHINES_TABLE = 'machines';
 const INCIDENTS_TABLE = 'incidents';
 const ALERTS_TABLE = 'alerts';
 const DASHBOARD_LAYOUTS_TABLE = 'dashboard_layouts';
+const SOP_TABLE = 'sop_documents';
 
 // Initialize BigQuery dataset and all tables
 export async function initBigQuery(): Promise<void> {
@@ -115,6 +116,17 @@ export async function initBigQuery(): Promise<void> {
       ],
     }).catch(() => {});
 
+    // SOPs: static reference library the investigation pipeline grounds its
+    // hypotheses in (read-only at runtime, seeded once below).
+    await dataset.table(SOP_TABLE).create({
+      schema: [
+        { name: 'id', type: 'STRING', mode: 'REQUIRED' },
+        { name: 'title', type: 'STRING', mode: 'REQUIRED' },
+        { name: 'trigger_signal', type: 'STRING', mode: 'REQUIRED' },
+        { name: 'body', type: 'STRING', mode: 'REQUIRED' },
+      ],
+    }).catch(() => {});
+
     // Tables may already exist from a previous run without the new columns
     // (deleted / updated_at). Add them idempotently so the append-only
     // "latest row wins" read path works.
@@ -177,6 +189,60 @@ export async function seedBigQuery(machines: any[]): Promise<void> {
     console.log(`[BigQuery] Seeded ${rows.length} rows`);
   } catch (err) {
     console.error('[BigQuery] Seed failed:', err);
+  }
+}
+
+export interface SopRow {
+  id: string;
+  title: string;
+  trigger_signal: string;
+  body: string;
+}
+
+const SYNTHETIC_SOPS: SopRow[] = [
+  {
+    id: 'SOP-101',
+    title: 'Process Drift Response',
+    trigger_signal: 'power',
+    body:
+      'If actual power draw climbs steadily above the expected baseline over many samples (not a single spike), suspect mechanical wear building up gradually — a bearing, belt, or spindle losing efficiency. Compare against SOP-102 before assuming a sensor fault: drift plus rising vibration together point to wear, drift alone with flat vibration points to a calibration or load change instead.',
+  },
+  {
+    id: 'SOP-102',
+    title: 'Tool Inspection',
+    trigger_signal: 'vibration',
+    body:
+      'If vibration rises alongside power deviation, inspect the cutting tool or spindle bearing before any other action. Rising vibration with rising cycle time usually means the tool is cutting less efficiently (dull edge, chipped insert) and the machine is compensating by working harder and slower. A brief vibration spike with no lasting rise after it usually just marks a tool-change event, not a fault.',
+  },
+  {
+    id: 'SOP-103',
+    title: 'Post-Adjustment Verification',
+    trigger_signal: 'post_action',
+    body:
+      'After any corrective action (tool replacement, recalibration, bearing service), expect power deviation to return within 3% of baseline, vibration to drop back under 4.5 mm/s, and cycle time under 120s within a short window. If metrics stay elevated after the action, treat the original hypothesis as unconfirmed rather than extending the same fix — escalate to a different root cause.',
+  },
+];
+
+// Seed the SOP reference table. Idempotent: skips if rows already exist.
+export async function seedSops(): Promise<void> {
+  try {
+    const table = client().dataset(datasetName()).table(SOP_TABLE);
+    const [rows] = await client().query(`SELECT COUNT(*) as n FROM \`${datasetName()}.${SOP_TABLE}\``);
+    if (rows[0]?.n > 0) return;
+    await table.insert(SYNTHETIC_SOPS);
+    console.log(`[BigQuery] Seeded ${SYNTHETIC_SOPS.length} SOP documents`);
+  } catch (err) {
+    console.error('[BigQuery] seedSops failed:', err);
+  }
+}
+
+export async function querySops(): Promise<SopRow[]> {
+  try {
+    const [rows] = await client().query(`SELECT id, title, trigger_signal, body FROM \`${datasetName()}.${SOP_TABLE}\``);
+    return rows as SopRow[];
+  } catch (err) {
+    console.error('[BigQuery] querySops failed:', err);
+    return [];
   }
 }
 

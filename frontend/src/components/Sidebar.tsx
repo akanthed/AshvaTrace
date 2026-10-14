@@ -74,10 +74,14 @@ export default function Sidebar() {
 
   const selectedId = isIncidentRoute ? incidentMachineId : routeId;
 
+  // Machine `type` values are lowercase process names from the backend
+  // ('milling', 'turning', 'grinding', 'stamping'), not 'Mill'/'Lathe' — group
+  // cutting processes (mill/lathe) as Line 1, finishing processes (grinder/press)
+  // as Line 2.
   const grouped = useMemo(() => {
     const lines = new Map<string, typeof machines>();
     for (const m of machines) {
-      const line = m.type.includes('Mill') || m.type.includes('Lathe') ? 'Line 1' : 'Line 2';
+      const line = m.type === 'milling' || m.type === 'turning' ? 'Line 1' : 'Line 2';
       if (!lines.has(line)) lines.set(line, []);
       lines.get(line)!.push(m);
     }

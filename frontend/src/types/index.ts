@@ -46,6 +46,15 @@ export interface Hypothesis {
   confidence: number;
   evidenceFor: string[];
   evidenceAgainst: string[];
+  sopRef?: string | null;
+}
+
+export interface InvestigationTraceStep {
+  type: 'tool_call' | 'tool_result' | 'reasoning';
+  tool?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  text?: string;
 }
 
 export interface Incident {
@@ -57,6 +66,7 @@ export interface Incident {
   severity: 'warning' | 'critical';
   devPct: number;
   hypotheses: Hypothesis[];
+  investigationTrace?: InvestigationTraceStep[];
   selectedHypothesis?: string;
   simulation?: {
     action: string;
@@ -114,6 +124,26 @@ export interface ThresholdViolation {
   severity: 'warning' | 'critical';
   actual: number;
   expected: number;
+}
+
+export interface CostImpact {
+  downtimeMinutes: number;
+  downtimeCost: number;
+  energyWasteKwh: number;
+  energyWasteCost: number;
+  mttrMinutes: number;
+  benchmarkMttrMinutes: number;
+  mttrReductionPct: number;
+  avoidedDowntimeMinutes: number;
+  totalSavings: number;
+  incidentsTotal: number;
+  incidentsResolved: number;
+  assumptions: {
+    downtimeCostPerHour: number;
+    source: string;
+    benchmarkMttrSource: string;
+    electricityRatePerKwh: number;
+  };
 }
 
 export interface SystemStatus {
