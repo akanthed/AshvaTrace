@@ -14,6 +14,13 @@ const TAB_LABELS: Record<TabKey, string> = {
   audit: 'Audit',
 };
 
+const TAB_ICONS: Record<TabKey, string> = {
+  investigate: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
+  actions: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  verify: 'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3',
+  audit: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8',
+};
+
 function isTabKey(value: string | null): value is TabKey {
   return !!value && (TAB_KEYS as string[]).includes(value);
 }
@@ -26,6 +33,9 @@ export function IncidentView() {
   const [action, setAction] = useState('');
   const [loading, setLoading] = useState(true);
   const [investigating, setInvestigating] = useState(false);
+  const [investigateError, setInvestigateError] = useState<string | null>(null);
+  const [simulating, setSimulating] = useState(false);
+  const [simulateError, setSimulateError] = useState<string | null>(null);
   const initialTab = searchParams.get('tab');
   const [tab, setTabState] = useState<TabKey>(isTabKey(initialTab) ? initialTab : 'investigate');
   const setTab = (next: TabKey) => {
@@ -124,6 +134,9 @@ export function IncidentView() {
       <div className="tabs" role="tablist">
         {TAB_KEYS.map((k) => (
           <button key={k} className={`tab ${tab === k ? 'on' : ''}`} onClick={() => setTab(k)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={TAB_ICONS[k]} />
+            </svg>
             {TAB_LABELS[k]}
           </button>
         ))}
