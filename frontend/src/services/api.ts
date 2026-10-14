@@ -52,6 +52,13 @@ export const api = {
   acknowledgeAlert: (id: string, body: { acknowledgedBy: string }) =>
     fetchJson<Alert>(`/alerts/${id}/acknowledge`, { method: 'POST', body: JSON.stringify(body) }),
 
+  // Chat assistant
+  askAssistant: (question: string) =>
+    fetchJson<{ answer: string; offTopic: boolean }>('/chat/ask', {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    }),
+
   // System
   getSystemStatus: () => fetchJson<SystemStatus>('/system/status'),
 

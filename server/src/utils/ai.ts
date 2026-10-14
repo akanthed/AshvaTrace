@@ -4,7 +4,7 @@ import https from 'https';
 // Vertex AI (GCP project billing) — no separate Gemini API key needed.
 // Read lazily (not at module load) so dotenv.config() in index.ts — which runs
 // after this module is transitively imported — has already populated process.env.
-function geminiModel() {
+export function geminiModel() {
   return process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 }
 function gcpProject() {
@@ -32,7 +32,7 @@ async function getAuthToken(): Promise<string> {
   return token;
 }
 
-function vertexAIRequest(
+export function vertexAIRequest(
   model: string,
   prompt: string,
   config: Record<string, unknown> = {}

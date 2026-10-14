@@ -6,6 +6,7 @@ import { alertRoutes } from './alertRoutes';
 import { sseRoutes } from './sseRoutes';
 import { systemRoutes } from './systemRoutes';
 import { dashboardLayoutRoutes } from './dashboardLayoutRoutes';
+import { chatRoutes } from './chatRoutes';
 
 export const routes = Router();
 
@@ -16,3 +17,4 @@ routes.use('/alerts', alertRoutes);
 routes.use('/sse', sseRoutes);
 routes.use('/system', systemRoutes);
 routes.use('/dashboard-layout', dashboardLayoutRoutes);
+routes.use('/chat', chatRoutes);

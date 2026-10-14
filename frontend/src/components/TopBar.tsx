@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAlerts } from '../hooks/useAlerts';
+import { AssistantPanel } from './AssistantPanel';
 
 function Clock() {
   const [now, setNow] = useState(() => new Date());
@@ -43,6 +44,7 @@ export default function TopBar() {
   const navigate = useNavigate();
   const { alerts } = useAlerts();
   const [open, setOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const unacknowledged = alerts.filter((a) => !a.acknowledged);
@@ -64,29 +66,59 @@ export default function TopBar() {
 
   return (
     <header className="top">
-      <button className="brand" onClick={() => navigate('/')}>
-        <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
-          <path
-            d="M2 20 L8 8 L13 15 L17 5 L24 20"
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth="2.4"
-            strokeLinejoin="round"
-          />
-          <circle cx="17" cy="5" r="2.4" fill="var(--crit)" />
-        </svg>
-        <b>AshvaTrace</b>
-        <small>by Team Ashvamedh</small>
-      </button>
+      {/* Left: utility icons + brand */}
+      <div className="top-left">
+        <button className="ico-btn" title="Account" aria-label="Account">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+        </button>
+        <button className="ico-btn" title="Home" aria-label="Home" onClick={() => navigate('/')}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <path d="M9 22V12h6v10" />
+          </svg>
+        </button>
 
-      <span className="sim">SIMULATED DATA</span>
+        <button className="brand" onClick={() => navigate('/')}>
+          <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+            <path
+              d="M2 20 L8 8 L13 15 L17 5 L24 20"
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="2.4"
+              strokeLinejoin="round"
+            />
+            <circle cx="17" cy="5" r="2.4" fill="var(--crit)" />
+          </svg>
+          <b>AshvaTrace</b>
+          <small>by Team Ashvamedh</small>
+        </button>
+      </div>
+
+      {/* Center: assistant bar */}
+      <button className="assistant-bar" onClick={() => setAssistantOpen(true)} aria-label="Ask the assistant">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <span className="assistant-ph">How can I assist you today?</span>
+        <span className="assistant-actions">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <path d="M12 19v4" />
+          </svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 12h14" />
+            <path d="M12 5l7 7-7 7" />
+          </svg>
+        </span>
+      </button>
 
       <div className="sp" />
 
-      <div className="ai-chip">
-        <span className="dot" />
-        <span className="lab">Gemma 3 · local (Docker)</span>
-      </div>
+      <span className="sim">SIMULATED DATA</span>
 
       <Clock />
 
@@ -143,6 +175,8 @@ export default function TopBar() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
+
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </header>
   );
 }
