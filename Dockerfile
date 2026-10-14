@@ -4,7 +4,7 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY frontend/ ./
 RUN npm run build
 
@@ -12,7 +12,7 @@ RUN npm run build
 FROM node:20-alpine AS backend-build
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 COPY server/ ./
 RUN npm run build
 
@@ -21,7 +21,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY server/package*.json ./
-RUN npm install --only=production
+RUN npm install --only=production --legacy-peer-deps
 
 COPY --from=backend-build /app/server/dist ./dist
 COPY --from=frontend-build /app/frontend/dist ./public
