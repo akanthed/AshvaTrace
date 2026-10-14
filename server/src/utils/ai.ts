@@ -275,12 +275,23 @@ const INVESTIGATION_TOOLS = [
       },
     },
   },
+  {
+    name: 'inspect_tool',
+    description:
+      'Run a Vision AI inspection of the machine\'s cutting tool. Analyzes a synthetic tool inspection image and returns condition (good/worn/critical), wear percentage, visual observations, and a recommendation.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        wearLevel: { type: 'INTEGER', description: 'Estimated wear level 0-100 to generate the inspection image (use the power deviation as a proxy: higher deviation = more wear)' },
+      },
+    },
+  },
 ];
 
 export async function investigateAgentic(
   context: { machineId: string; devPct: number; signals: Record<string, number> },
   sops: SopExcerpt[] = [],
-  toolExecutor: (name: string, args: Record<string, unknown>) => unknown
+  toolExecutor: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>
 ): Promise<AgenticInvestigationResult> {
   const trace: InvestigationTraceStep[] = [];
   const maxRounds = 3; // observe -> tools -> reason, capped so a chatty model can't loop forever
@@ -397,7 +408,7 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
       trace.push({ type: 'tool_call', tool: call.name, args: call.args });
       let result: unknown;
       try {
-        result = toolExecutor(call.name, call.args);
+        result = await toolExecutor(call.name, call.args);
       } catch (err: any) {
         result = { error: err.message || String(err) };
       }
@@ -495,6 +506,140 @@ Respond with ONLY a JSON object, no markdown, no explanation.`;
     predictedOutcome: parsed.predictedOutcome || 'Deviation should reduce to normal range',
     confidence: parsed.confidence || 70,
   };
+}
+
+// Vision AI: analyze a synthetic tool-inspection image for wear/damage.
+// Generates a deterministic "inspection photo" (SVG → base64) representing
+// the tool condition, then asks Gemini to assess it. This demonstrates the
+// Vision AI capability without requiring real camera hardware.
+export interface VisionInspectionResult {
+  condition: 'good' | 'worn' | 'critical';
+  wearPct: number;
+  observations: string[];
+  recommendation: string;
+}
+
+export async function inspectToolImage(
+  machineId: string,
+  wearLevel: number // 0-100, how worn the tool is (drives the synthetic image)
+): Promise<VisionInspectionResult> {
+  // Generate a deterministic SVG "inspection photo" of a cutting tool.
+  // The visual appearance changes with wearLevel: clean edge → chipped → broken.
+  const svg = generateToolInspectionSvg(machineId, wearLevel);
+  const base64 = Buffer.from(svg).toString('base64');
+
+  const prompt = `You are an industrial quality inspector analyzing a CNC cutting tool inspection image.
+
+Machine: "${machineId}"
+
+Analyze the tool condition in this image and report:
+- condition: "good" (minimal wear), "worn" (noticeable wear, still usable), or "critical" (chipped/broken, must replace)
+- wearPct: estimated wear percentage 0-100
+- observations: 2-3 specific visual observations (edge geometry, surface finish, chip load)
+- recommendation: one sentence on whether the tool should be replaced, re-sharpened, or is still serviceable
+
+Respond with ONLY a JSON object, no markdown, no explanation.`;
+
+  const project = gcpProject();
+  const token = await getAuthToken();
+  const path = `/v1/projects/${project}/locations/${gcpLocation()}/publishers/google/models/${geminiModel()}:generateContent`;
+
+  const body = JSON.stringify({
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: prompt },
+          { inlineData: { mimeType: 'image/svg+xml', data: base64 } },
+        ],
+      },
+    ],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 512, ...NO_THINKING },
+  });
+
+  const json = await new Promise<any>((resolve, reject) => {
+    const req = https.request(
+      {
+        hostname: 'aiplatform.googleapis.com',
+        path,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'Content-Length': Buffer.byteLength(body),
+        },
+      },
+      (res) => {
+        let b = '';
+        res.on('data', (c) => (b += c));
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(b);
+            if (parsed.error) reject(new Error(parsed.error.message || JSON.stringify(parsed.error)));
+            else resolve(parsed);
+          } catch (e) {
+            reject(new Error(`Failed to parse Vertex AI response: ${b.slice(0, 200)}`));
+          }
+        });
+      }
+    );
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
+
+  const text = (json.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+  const parsed = extractJson(text) as any;
+
+  return {
+    condition: parsed.condition || 'worn',
+    wearPct: parsed.wearPct || Math.round(wearLevel),
+    observations: parsed.observations || ['Tool edge shows moderate wear'],
+    recommendation: parsed.recommendation || 'Monitor and re-inspect next shift',
+  };
+}
+
+// Deterministic SVG generation for synthetic tool inspection images.
+// The tool's visual state changes with wearLevel (0=pristine, 100=broken).
+function generateToolInspectionSvg(machineId: string, wearLevel: number): string {
+  // Tool edge color: green (good) → yellow (worn) → red (critical)
+  const edgeColor = wearLevel < 30 ? '#4caf50' : wearLevel < 70 ? '#ff9800' : '#f44336';
+  // Edge shape: clean line → slightly chipped → visibly broken
+  const edgePath =
+    wearLevel < 30
+      ? 'M 200 300 L 350 300 L 350 310 L 200 310 Z' // clean flat edge
+      : wearLevel < 70
+        ? 'M 200 300 L 340 300 L 345 305 L 335 310 L 350 310 L 200 310 Z' // slight chip
+        : 'M 200 300 L 320 300 L 330 295 L 340 308 L 325 312 L 350 310 L 200 310 Z'; // broken
+
+  // Surface texture: clean → scratched → pitted
+  const scratches = wearLevel > 40
+    ? `<line x1="220" y1="250" x2="300" y2="260" stroke="#999" stroke-width="1" opacity="0.5"/>
+       <line x1="240" y1="270" x2="320" y2="275" stroke="#999" stroke-width="1" opacity="0.4"/>`
+    : '';
+  const pits = wearLevel > 70
+    ? `<circle cx="250" cy="260" r="3" fill="#666" opacity="0.6"/>
+       <circle cx="280" cy="280" r="2" fill="#666" opacity="0.5"/>
+       <circle cx="310" cy="255" r="4" fill="#666" opacity="0.7"/>`
+    : '';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#1a1a2e"/>
+  <text x="200" y="30" text-anchor="middle" fill="#fff" font-family="monospace" font-size="14">Tool Inspection — ${machineId}</text>
+  <text x="200" y="50" text-anchor="middle" fill="#888" font-family="monospace" font-size="11">Wear index: ${Math.round(wearLevel)}%</text>
+  <!-- Tool body -->
+  <rect x="180" y="100" width="40" height="200" fill="#555" rx="4"/>
+  <rect x="170" y="290" width="60" height="30" fill="#444" rx="2"/>
+  <!-- Cutting edge -->
+  <path d="${edgePath}" fill="${edgeColor}" stroke="#333" stroke-width="1"/>
+  <!-- Surface texture -->
+  ${scratches}
+  ${pits}
+  <!-- Reference grid -->
+  <line x1="100" y1="350" x2="350" y2="350" stroke="#333" stroke-width="1"/>
+  <text x="100" y="370" fill="#666" font-family="monospace" font-size="10">0mm</text>
+  <text x="350" y="370" fill="#666" font-family="monospace" font-size="10" text-anchor="end">10mm</text>
+</svg>`;
 }
 
 // DETERMINISTIC verification (NOT AI) — this is the core differentiator

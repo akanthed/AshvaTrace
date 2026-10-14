@@ -1,4 +1,4 @@
-import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, InvestigationTraceStep } from '../utils/ai';
+import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, inspectToolImage, InvestigationTraceStep } from '../utils/ai';
 import { getMachineById, getMachineStatus, getMachineSeries } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
 import { retrieveSops, getSopById } from './sopService';
@@ -164,7 +164,7 @@ export async function investigateIncident(
   // revert to 'open' and record the real failure in the audit log — never
   // substitute canned content for a failed call.
   const machineId = incident.machineId;
-  const toolExecutor = (name: string, args: Record<string, unknown>): unknown => {
+  const toolExecutor = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
     const series = getMachineSeries(machineId, 0);
     if (!series) throw new Error(`No series data for machine ${machineId}`);
     const n = Math.min(Math.max(parseInt(String(args.samples || 60), 10) || 60, 10), 480);
@@ -216,6 +216,10 @@ export async function investigateIncident(
           ratePerSampleSec: Math.round(ratePerSample * 100) / 100,
           slowingDown: recent > baseline * 1.05,
         };
+      }
+      case 'inspect_tool': {
+        const wearLevel = Math.min(Math.max(parseInt(String(args.wearLevel || 50), 10) || 50, 0), 100);
+        return inspectToolImage(machineId, wearLevel);
       }
       default:
         throw new Error(`Unknown tool: ${name}`);

@@ -8,6 +8,7 @@ import {
   updateMachine,
   deleteMachine,
 } from '../services/machineService';
+import { inspectToolImage } from '../utils/ai';
 
 export async function getMachines(_req: Request, res: Response) {
   const machines = fetchMachines();
@@ -87,4 +88,21 @@ export async function removeMachine(req: Request, res: Response) {
     return;
   }
   res.status(204).send();
+}
+
+export async function inspectTool(req: Request, res: Response) {
+  try {
+    const machine = getMachineById(req.params.id);
+    if (!machine) {
+      res.status(404).json({ error: 'Machine not found' });
+      return;
+    }
+    const status = fetchStatus(req.params.id);
+    // Use the current power deviation as a proxy for tool wear level.
+    const wearLevel = status ? Math.min(Math.abs(status.devPct) * 2, 100) : 50;
+    const result = await inspectToolImage(req.params.id, wearLevel);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 }

@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useMachines } from '../hooks/useMachines';
 import { useAlerts } from '../hooks/useAlerts';
 import MachineTable from '../components/MachineTable';
+import { api } from '../services/api';
+import type { VisionInspection } from '../types';
 
 interface Props {
   machineId?: string;
@@ -9,6 +12,21 @@ interface Props {
 export default function MonitoringView({ machineId }: Props) {
   const { machines: allMachines, statuses, loading } = useMachines();
   const { alerts } = useAlerts();
+  const [inspection, setInspection] = useState<VisionInspection | null>(null);
+  const [inspecting, setInspecting] = useState(false);
+
+  async function runInspection() {
+    if (!machineId) return;
+    setInspecting(true);
+    try {
+      const result = await api.inspectTool(machineId);
+      setInspection(result);
+    } catch {
+      setInspection(null);
+    } finally {
+      setInspecting(false);
+    }
+  }
 
   if (loading) {
     return <div className="loading">Loading monitoring data…</div>;
@@ -88,6 +106,49 @@ export default function MonitoringView({ machineId }: Props) {
           <MachineTable machines={machines} statuses={statuses} alerts={alerts} />
         </div>
       </div>
+
+      {machineId && (
+        <div className="panel">
+          <header>
+            <h3>Tool Inspection (Vision AI)</h3>
+            <div className="sp" />
+            <button className="primary" onClick={runInspection} disabled={inspecting}>
+              {inspecting ? 'Analyzing…' : 'Run Inspection'}
+            </button>
+          </header>
+          <div className="body">
+            {inspecting && <div className="loading">Running Vision AI analysis on tool image…</div>}
+            {!inspecting && !inspection && (
+              <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+                Run a Vision AI inspection to analyze the machine's cutting tool condition from a synthetic inspection image.
+              </p>
+            )}
+            {inspection && (
+              <div>
+                <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
+                  <div className="count">
+                    <small>Condition</small>
+                    <b style={{ color: inspection.condition === 'good' ? 'var(--ok)' : inspection.condition === 'worn' ? 'var(--warn)' : 'var(--crit)' }}>
+                      {inspection.condition.toUpperCase()}
+                    </b>
+                  </div>
+                  <div className="count">
+                    <small>Wear</small>
+                    <b>{inspection.wearPct}%</b>
+                  </div>
+                </div>
+                <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  <strong>Observations:</strong>
+                  <ul style={{ margin: '4px 0 8px 16px' }}>
+                    {inspection.observations.map((o, i) => <li key={i}>{o}</li>)}
+                  </ul>
+                  <strong>Recommendation:</strong> {inspection.recommendation}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

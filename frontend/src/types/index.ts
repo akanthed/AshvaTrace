@@ -126,6 +126,13 @@ export interface ThresholdViolation {
   expected: number;
 }
 
+export interface VisionInspection {
+  condition: 'good' | 'worn' | 'critical';
+  wearPct: number;
+  observations: string[];
+  recommendation: string;
+}
+
 export interface CostImpact {
   downtimeMinutes: number;
   downtimeCost: number;

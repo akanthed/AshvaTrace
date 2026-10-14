@@ -67,6 +67,9 @@ export const api = {
   getDashboardLayout: (machineId: string) => fetchJson<DashboardLayout>(`/dashboard-layout/${machineId}`),
   saveDashboardLayout: (machineId: string, body: Partial<Omit<DashboardLayout, 'machineId'>>) =>
     fetchJson<DashboardLayout>(`/dashboard-layout/${machineId}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  // Vision AI tool inspection
+  inspectTool: (machineId: string) => fetchJson<VisionInspection>(`/api/machines/${machineId}/inspect-tool`, { method: 'POST' }),
 };
 
 // SSE connection for real-time alerts
