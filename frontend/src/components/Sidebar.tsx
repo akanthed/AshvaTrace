@@ -18,7 +18,6 @@ function statusLabel(status: string): string {
 
 export default function Sidebar() {
   const { machines, statuses } = useMachines();
-  const { alerts } = useAlerts();
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
