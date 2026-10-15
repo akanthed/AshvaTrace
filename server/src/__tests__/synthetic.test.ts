@@ -9,7 +9,7 @@ describe('synthetic data generator', () => {
     const { data } = generateShiftData();
     expect(data.N).toBe(N);
     expect(data.DT).toBe(DT);
-    expect(data.machines).toHaveLength(3);
+    expect(data.machines).toHaveLength(6);
     for (const m of data.machines) {
       expect(m.series).toHaveLength(N);
     }
@@ -27,6 +27,9 @@ describe('synthetic data generator', () => {
       'CNC-01': 45,
       'CNC-02': 42,
       'CNC-03': 48,
+      'LATHE-01': 38,
+      'GRD-01': 30,
+      'PRS-01': 55,
     };
     for (const m of data.machines) {
       expect(bases[m.id]).toBeDefined();
@@ -100,7 +103,7 @@ describe('synthetic data generator', () => {
 
   it('machine list omits full series', () => {
     const { machines } = generateShiftData();
-    expect(machines).toHaveLength(3);
+    expect(machines).toHaveLength(6);
     for (const m of machines) {
       expect(m.series).toEqual([]);
     }

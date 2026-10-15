@@ -409,6 +409,27 @@ export async function queryMachines(): Promise<MachineRow[]> {
   }
 }
 
+// Ids whose latest row is an explicit deletion tombstone — used to remove a
+// seeded (hardcoded) machine that the user deleted via the UI, WITHOUT
+// treating "never persisted at all" the same as "deleted" (a seeded machine
+// has no BigQuery row until its first edit).
+export async function queryDeletedMachineIds(): Promise<string[]> {
+  try {
+    const [rows] = await client().query(
+      `SELECT id
+       FROM (
+         SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY updated_at DESC) AS rn
+         FROM \`${datasetName()}.${MACHINES_TABLE}\`
+       )
+       WHERE rn = 1 AND deleted = TRUE`
+    );
+    return rows.map((r: any) => r.id);
+  } catch (err) {
+    console.error('[BigQuery] queryDeletedMachineIds failed:', err);
+    return [];
+  }
+}
+
 export interface IncidentRow {
   id: string;
   machine_id: string;

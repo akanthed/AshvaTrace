@@ -13,11 +13,11 @@ describe('analyticsService', () => {
   });
 
   describe('getShiftSummary', () => {
-    it('returns a summary for all 3 machines', () => {
+    it('returns a summary for all machines', () => {
       const summary = getShiftSummary();
       expect(summary.shiftStart).toBe('06:00');
       expect(summary.shiftEnd).toBe('14:00');
-      expect(summary.machines).toHaveLength(3);
+      expect(summary.machines).toHaveLength(6);
     });
 
     it('flags CNC-03 as critical and healthy machines as non-critical', () => {
@@ -83,7 +83,7 @@ describe('analyticsService', () => {
   describe('getEnergyReport', () => {
     it('returns energy data for all machines', () => {
       const report = getEnergyReport();
-      expect(report.machines).toHaveLength(3);
+      expect(report.machines).toHaveLength(6);
       for (const m of report.machines) {
         expect(m.totalActualKwh).toBeGreaterThan(0);
         expect(m.totalExpectedKwh).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe('analyticsService', () => {
   describe('getMachineComparison', () => {
     it('returns comparison stats for all machines', () => {
       const comparison = getMachineComparison();
-      expect(comparison).toHaveLength(3);
+      expect(comparison).toHaveLength(6);
       for (const m of comparison) {
         expect(m.avgActual).toBeGreaterThan(0);
         expect(m.avgExpected).toBeGreaterThan(0);

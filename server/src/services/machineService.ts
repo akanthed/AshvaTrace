@@ -1,5 +1,5 @@
 import { generateShiftData, generateMachineSeries, ShiftData, MachineInfo, Sample, Thresholds } from '../utils/synthetic';
-import { upsertMachine, deleteMachineRow, queryMachines, MachineRow } from './bigqueryService';
+import { upsertMachine, deleteMachineRow, queryMachines, queryDeletedMachineIds, MachineRow } from './bigqueryService';
 
 // In-memory store for the current shift
 let shiftData: ShiftData | null = null;
@@ -14,9 +14,15 @@ export function initShiftData() {
 
 // Load persisted machine definitions from BigQuery and merge them into the
 // in-memory store. Machines that exist in BigQuery but not in the seeded set
-// (i.e. ones the user added) are regenerated with a fresh series. Machines
-// that were deleted in BigQuery are removed from the seeded set. This makes
-// add/remove/update survive a server restart.
+// (i.e. ones the user added) are regenerated with a fresh series.
+//
+// Seeded machines are NEVER removed merely for being absent from
+// queryMachines()'s result — a seeded machine (e.g. CNC-02, CNC-03) has no
+// BigQuery row at all until its first edit, so "not in BigQuery" does not
+// mean "deleted". queryMachines() already excludes tombstoned (deleted=true)
+// rows, so the only way a machine is actually gone is an explicit delete,
+// which deleteMachine() already applies in-memory immediately — this loader
+// does not need to (and must not) re-derive deletion from absence.
 export async function loadPersistedMachines(): Promise<void> {
   if (!shiftData) initShiftData();
   if (!shiftData) return;
@@ -27,13 +33,22 @@ export async function loadPersistedMachines(): Promise<void> {
   } catch {
     return; // BigQuery unavailable — keep the seeded in-memory set
   }
+
+  // Remove seeded machines the user explicitly deleted via the UI (an actual
+  // tombstone row), not merely machines absent from BigQuery entirely.
+  let deletedIds: string[] = [];
+  try {
+    deletedIds = await queryDeletedMachineIds();
+  } catch {
+    // Non-fatal — worst case a previously-deleted seeded machine reappears
+  }
+  if (deletedIds.length > 0) {
+    const deletedSet = new Set(deletedIds);
+    shiftData.machines = shiftData.machines.filter((m) => !deletedSet.has(m.id));
+    machineInfos = machineInfos.filter((m) => !deletedSet.has(m.id));
+  }
+
   if (rows.length === 0) return; // Nothing persisted yet
-
-  const persistedIds = new Set(rows.map((r) => r.id));
-
-  // Remove seeded machines that were deleted in BigQuery
-  shiftData.machines = shiftData.machines.filter((m) => persistedIds.has(m.id));
-  machineInfos = machineInfos.filter((m) => persistedIds.has(m.id));
 
   // Add or update machines from BigQuery
   for (const row of rows) {

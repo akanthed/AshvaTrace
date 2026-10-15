@@ -6,7 +6,7 @@ import { routes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus, getMachines } from './services/machineService';
 import { checkThresholds, publishAlert, loadPersistedAlerts } from './services/alertService';
-import { loadPersistedIncidents, seedPastIncidents, investigateIncident, getIncidentById } from './services/incidentService';
+import { loadPersistedIncidents, seedPastIncidents, seedOpenIncidents, investigateIncident, getIncidentById } from './services/incidentService';
 import { broadcastEvent } from './routes/sseRoutes';
 import { initBigQuery, seedBigQuery, seedSops } from './services/bigqueryService';
 
@@ -58,6 +58,11 @@ async function start() {
     // Seed synthetic past incidents so the AI has history to reference
     // ("last time this happened, we did X and it worked").
     seedPastIncidents();
+    // Seed a small set of open, unanswered incidents (zero hypotheses) so
+    // there's always something to demo "Run AI Investigation" on, instead of
+    // depending on the live random-walk simulator to drift a machine into
+    // critical at an unpredictable time.
+    seedOpenIncidents();
   }
 
   // Start threshold checker (every 5 seconds)

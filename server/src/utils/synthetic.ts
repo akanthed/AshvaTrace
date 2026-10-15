@@ -58,10 +58,13 @@ const N = 2400; // 2400 samples
 const DT = 12; // 12 seconds per sample
 const SEED = 4207;
 
-// Three demo machines, each pinned to a fixed condition for the whole shift:
-//   CNC-01 → Normal   (deviation hovers near 0–2%, well under the 5% warning)
-//   CNC-02 → Warning  (deviation hovers ~6–9%, above warning, under critical)
-//   CNC-03 → Action   (deviation hovers ~12–18%, above the 10% critical)
+// Demo machines, each pinned to a fixed condition for the whole shift:
+//   CNC-01  → Normal   (deviation hovers near 0–2%, well under the 5% warning)
+//   CNC-02  → Warning  (deviation hovers ~6–9%, above warning, under critical)
+//   CNC-03  → Action   (deviation hovers ~12–18%, above the 10% critical)
+//   LATHE-01→ Normal   (different process type, for plant breadth)
+//   GRD-01  → Warning
+//   PRS-01  → Normal
 //
 // `targetDevPct` is the center of the band the machine's power deviation
 // should sit in. The seeded series and the live tick both mean-revert toward
@@ -79,6 +82,18 @@ const MACHINE_DEFS = [
   {
     id: 'CNC-03', name: 'CNC Mill 03', type: 'milling', base: 48, warning: 5, critical: 10,
     cyclePeriods: 1, cyclePhase: 0, targetDevPct: 15.0,
+  },
+  {
+    id: 'LATHE-01', name: 'CNC Lathe 01', type: 'turning', base: 38, warning: 5, critical: 10,
+    cyclePeriods: 2, cyclePhase: 0.6, targetDevPct: 1.5,
+  },
+  {
+    id: 'GRD-01', name: 'Grinder 01', type: 'grinding', base: 30, warning: 5, critical: 10,
+    cyclePeriods: 2, cyclePhase: 2.0, targetDevPct: 6.5,
+  },
+  {
+    id: 'PRS-01', name: 'Press 01', type: 'stamping', base: 55, warning: 5, critical: 10,
+    cyclePeriods: 1, cyclePhase: 1.5, targetDevPct: 0.5,
   },
 ];
 

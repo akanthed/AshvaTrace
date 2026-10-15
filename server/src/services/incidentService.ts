@@ -262,6 +262,170 @@ export function seedPastIncidents(): void {
       },
       resolutionComment: 'Tool was at 70% wear. Replaced and machine returned to normal.',
     },
+    {
+      id: 'INC-PAST-004',
+      machineId: 'LATHE-01',
+      machineName: 'CNC Lathe 01',
+      daysAgo: 9,
+      devPct: 11.4,
+      severity: 'critical',
+      status: 'verified',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Chuck jaw misalignment increasing spindle load',
+          confidence: 80,
+          evidenceFor: [
+            'Power jumped 11% above baseline right after a job changeover',
+            'Vibration elevated at 4.6 mm/s, consistent with an off-center workpiece',
+          ],
+          evidenceAgainst: [
+            'Cycle time stayed close to normal, which would be unusual for a severe misalignment',
+          ],
+          sopRef: 'SOP-101',
+        },
+        {
+          id: 'HYP-2',
+          title: 'Worn insert causing higher cutting force',
+          confidence: 48,
+          evidenceFor: [
+            'Insert had been in use for an extended run',
+          ],
+          evidenceAgainst: [
+            'The deviation appeared abruptly rather than building gradually, more typical of a setup issue than wear',
+          ],
+          sopRef: 'SOP-102',
+        },
+      ],
+      simulation: {
+        action: 'Re-align chuck jaws and re-run calibration cut',
+        predictedOutcome: 'Power deviation should drop to under 3% once the workpiece is running true again.',
+        confidence: 83,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Chuck re-aligned. Power deviation dropped to 2.0% on the next part. Vibration settled at 2.3 mm/s.',
+        metrics: { powerDevPct: 2.0, vibration: 2.3, cycleTime: 58 },
+      },
+      resolutionComment: 'Jaws had shifted slightly during the last changeover. Re-aligned and re-calibrated.',
+    },
+    {
+      id: 'INC-PAST-005',
+      machineId: 'GRD-01',
+      machineName: 'Grinder 01',
+      daysAgo: 6,
+      devPct: 9.1,
+      severity: 'warning',
+      status: 'closed',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Grinding wheel glazing reducing cutting efficiency',
+          confidence: 74,
+          evidenceFor: [
+            'Power was 9% above baseline and climbing slowly across the shift',
+            'Vibration mildly elevated, consistent with a glazed wheel rubbing instead of cutting',
+          ],
+          evidenceAgainst: [
+            'No unusual spark pattern reported by the operator, which often accompanies a badly glazed wheel',
+          ],
+          sopRef: 'SOP-101',
+        },
+      ],
+      simulation: {
+        action: 'Dress the grinding wheel',
+        predictedOutcome: 'Dressing the wheel should restore cutting efficiency and drop power deviation back under 3%.',
+        confidence: 75,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Wheel dressed. Power deviation dropped to 1.9% within the next few parts.',
+        metrics: { powerDevPct: 1.9, vibration: 2.4, cycleTime: 75 },
+      },
+      resolutionComment: 'Wheel was glazed from an extended run without dressing. Dressed and back to normal.',
+    },
+    {
+      id: 'INC-PAST-006',
+      machineId: 'PRS-01',
+      machineName: 'Press 01',
+      daysAgo: 15,
+      devPct: 13.6,
+      severity: 'critical',
+      status: 'verified',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Die lubrication starvation increasing stamping force',
+          confidence: 77,
+          evidenceFor: [
+            'Power spiked 13.6% above baseline mid-shift',
+            'Cycle time slowed slightly, consistent with higher friction at the die',
+          ],
+          evidenceAgainst: [
+            'Vibration stayed close to normal, which is less typical of a severe lubrication issue',
+          ],
+          sopRef: 'SOP-102',
+        },
+        {
+          id: 'HYP-2',
+          title: 'Material gauge thicker than spec',
+          confidence: 40,
+          evidenceFor: [
+            'Deviation appeared right after a new coil was loaded',
+          ],
+          evidenceAgainst: [
+            'Incoming material was within the supplier tolerance per the batch sheet',
+          ],
+          sopRef: null,
+        },
+      ],
+      simulation: {
+        action: 'Replenish die lubrication and inspect die surface',
+        predictedOutcome: 'Restoring lubrication should bring stamping force, and power deviation, back under 3%.',
+        confidence: 80,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Lubrication replenished. Power deviation dropped to 2.3% on the next cycle.',
+        metrics: { powerDevPct: 2.3, vibration: 2.1, cycleTime: 45 },
+      },
+      resolutionComment: 'Lube reservoir was low. Topped up and die inspected — no damage found.',
+    },
+    {
+      id: 'INC-PAST-007',
+      machineId: 'CNC-01',
+      machineName: 'CNC Mill 01',
+      daysAgo: 20,
+      devPct: 6.3,
+      severity: 'warning',
+      status: 'closed',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Coolant concentration too low, raising cutting resistance',
+          confidence: 68,
+          evidenceFor: [
+            'Power was 6.3% above baseline for most of the shift',
+            'No corresponding rise in vibration, which points away from a mechanical cause',
+          ],
+          evidenceAgainst: [
+            'Cycle time was unaffected, which would be slightly unusual for a coolant issue',
+          ],
+          sopRef: 'SOP-101',
+        },
+      ],
+      simulation: {
+        action: 'Check and top up coolant concentration',
+        predictedOutcome: 'Correcting coolant mix should bring power deviation back under 3% within a few parts.',
+        confidence: 65,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Coolant concentration was below spec. Topped up. Power deviation dropped to 1.5%.',
+        metrics: { powerDevPct: 1.5, vibration: 1.9, cycleTime: 89 },
+      },
+      resolutionComment: 'Coolant mixer had drifted out of spec. Corrected and logged for weekly check.',
+    },
   ];
 
   for (const seed of seeds) {
@@ -321,6 +485,66 @@ export function seedPastIncidents(): void {
   }
 
   console.log(`[Init] Seeded ${seeds.length} past incidents for demo history`);
+}
+
+/**
+ * Seed a small set of currently-open, UNANSWERED incidents (zero hypotheses)
+ * on every boot, so there's always something for a judge/demo viewer to click
+ * "Run AI Investigation" on and watch a real Gemini call happen live — rather
+ * than relying on the live random-walk simulator to drift a machine into
+ * critical at an unpredictable time. Only creates an incident if that exact
+ * id doesn't already exist, and never overwrites a real open incident on the
+ * same machine (skips machines that already have one), so re-running this on
+ * every restart is safe and won't duplicate or clobber real investigation
+ * progress.
+ */
+export function seedOpenIncidents(): void {
+  const now = Date.now();
+  const hour = 60 * 60 * 1000;
+
+  const seeds: Array<{
+    id: string;
+    machineId: string;
+    machineName: string;
+    hoursAgo: number;
+    devPct: number;
+    severity: 'warning' | 'critical';
+  }> = [
+    { id: 'INC-DEMO-001', machineId: 'CNC-02', machineName: 'CNC Mill 02', hoursAgo: 2, devPct: 8.4, severity: 'warning' },
+    { id: 'INC-DEMO-002', machineId: 'GRD-01', machineName: 'Grinder 01', hoursAgo: 1, devPct: 9.8, severity: 'warning' },
+    { id: 'INC-DEMO-003', machineId: 'PRS-01', machineName: 'Press 01', hoursAgo: 0.5, devPct: 12.1, severity: 'critical' },
+  ];
+
+  for (const seed of seeds) {
+    if (incidents.has(seed.id)) continue;
+    // Don't create a second open incident on a machine that already has one
+    // (e.g. from the live simulator) — createIncident's own dedup covers
+    // runtime calls, but this seed runs directly against the map.
+    if (getOpenIncidentForMachine(seed.machineId)) continue;
+
+    const detectedAt = new Date(now - seed.hoursAgo * hour).toISOString();
+    const incident: Incident = {
+      id: seed.id,
+      machineId: seed.machineId,
+      machineName: seed.machineName,
+      status: 'open',
+      detectedAt,
+      severity: seed.severity,
+      devPct: seed.devPct,
+      hypotheses: [],
+      auditLog: [
+        {
+          timestamp: detectedAt,
+          actor: 'system',
+          action: 'incident_detected',
+          details: `Deviation ${seed.devPct}% detected on ${seed.machineName}`,
+        },
+      ],
+    };
+    incidents.set(seed.id, incident);
+  }
+
+  console.log(`[Init] Seeded ${seeds.length} open, unanswered demo incidents`);
 }
 
 export function getIncidents(): Incident[] {

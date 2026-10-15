@@ -12,13 +12,16 @@ describe('machineService', () => {
     initShiftData();
   });
 
-  it('getMachines returns all 3 machines', () => {
+  it('getMachines returns all seeded machines', () => {
     const machines = getMachines();
-    expect(machines).toHaveLength(3);
+    expect(machines).toHaveLength(6);
     expect(machines.map((m) => m.id)).toEqual([
       'CNC-01',
       'CNC-02',
       'CNC-03',
+      'LATHE-01',
+      'GRD-01',
+      'PRS-01',
     ]);
   });
 
