@@ -56,7 +56,11 @@ export function IncidentView() {
 
   useEffect(() => {
     const paramTab = searchParams.get('tab');
-    if (isTabKey(paramTab)) setTabState(paramTab);
+    if (isTabKey(paramTab)) {
+      setTabState(paramTab);
+    } else {
+      setTabState('investigate');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 

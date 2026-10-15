@@ -102,6 +102,11 @@ export function MachineView() {
     if (isTabKey(paramTab)) {
       setTabState(paramTab);
       setGroup(groupForTab(paramTab));
+    } else {
+      // No ?tab= param — reset to default so stale tabs from a previous
+      // machine's URL don't leak through when navigating between machines.
+      setTabState('monitoring');
+      setGroup('monitor');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);

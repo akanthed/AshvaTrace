@@ -4,3 +4,4 @@ node_modules/
 ashvatrace-42607ad03e01.json
 server/dist/
 server/public/
+.impeccable/hook.cache.json
