@@ -123,7 +123,7 @@ export function vertexAIRequest(
   return vertexAIRequestFull(model, prompt, config).then((r) => r.text);
 }
 
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {

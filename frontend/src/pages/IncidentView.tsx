@@ -66,6 +66,9 @@ export function IncidentView() {
 
   useEffect(() => {
     if (!id) return;
+    setLoading(true);
+    setSelectedHyp(undefined);
+    setAction('');
     api
       .getIncident(id)
       .then((inc) => {
@@ -244,9 +247,11 @@ export function IncidentView() {
                       <article
                         key={inc.id}
                         className="hyp"
+                        onClick={() => !isCurrent && navigate(`/incident/${inc.id}?tab=investigate`)}
                         style={{
                           opacity: isCurrent ? 1 : 0.75,
                           borderLeft: isCurrent ? '3px solid var(--accent)' : '3px solid transparent',
+                          cursor: isCurrent ? 'default' : 'pointer',
                         }}
                       >
                         <h4 style={{ fontSize: 13 }}>
