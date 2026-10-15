@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMachines } from '../hooks/useMachines';
+import { useAlerts } from '../hooks/useAlerts';
 import { api } from '../services/api';
 
 function statusToSt(status: string): 'ok' | 'warn' | 'crit' {
@@ -17,6 +18,7 @@ function statusLabel(status: string): string {
 
 export default function Sidebar() {
   const { machines, statuses } = useMachines();
+  const { alerts } = useAlerts();
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -76,6 +78,20 @@ export default function Sidebar() {
     );
   };
 
+  // A machine with an open critical/warning alert goes straight to its
+  // incident page (Investigate/Actions/Verify/Audit), same as the
+  // Monitoring table row click — otherwise it lands on the Monitor tabs.
+  const openMachine = (machineId: string, status: string) => {
+    if (status === 'critical' || status === 'warning') {
+      const alert = alerts.find((a) => a.machineId === machineId && !a.acknowledged);
+      if (alert?.incidentId) {
+        navigate(`/incident/${alert.incidentId}`);
+        return;
+      }
+    }
+    navigate(`/machine/${machineId}`);
+  };
+
   return (
     <nav className="tree">
       <div className="search">
@@ -101,7 +117,7 @@ export default function Sidebar() {
                 <button
                   key={m.id}
                   className={`m${isSel ? ' sel' : ''}`}
-                  onClick={() => navigate(`/machine/${m.id}`)}
+                  onClick={() => openMachine(m.id, st)}
                 >
                   <span className={`st ${stClass}`} />
                   <span>

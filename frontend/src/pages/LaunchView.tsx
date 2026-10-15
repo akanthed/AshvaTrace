@@ -69,64 +69,25 @@ const ICONS: Record<string, ReactElement> = {
 };
 
 interface CriticalContext {
-  machineId?: string;
   incidentId?: string;
 }
 
-function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey, string, Tile[]]> {
-  // Only show machine-specific tiles when there's an active critical alert.
-  // Otherwise the home screen shows a generic "go to monitoring" tile.
-  const hasActive = !!machineId;
-  const trendsMachine = machineId ?? '';
-
-  const monitorTiles: Tile[] = hasActive
-    ? [
-        {
-          title: 'Monitoring',
-          desc: "A machine's current power, expected power and deviation",
-          icon: ICONS.plant,
-          go: `/machine/${trendsMachine}?tab=monitoring`,
-          flagged: !!incidentId,
-        },
-        {
-          title: 'Dashboard',
-          desc: "A machine's own dashboard of live tiles",
-          icon: ICONS.stack,
-          go: `/machine/${trendsMachine}?tab=dashboard`,
-        },
-        {
-          title: 'Threshold',
-          desc: "The warning and critical limits that decide a machine's status",
-          icon: ICONS.gauge,
-          go: `/machine/${trendsMachine}?tab=threshold`,
-        },
-        {
-          title: 'Trends',
-          desc: "A machine's power over time, actual vs. expected",
-          icon: ICONS.chart,
-          go: `/machine/${trendsMachine}?tab=trends`,
-        },
-        {
-          title: 'Plant',
-          desc: 'Manage machines — add, rename, remove',
-          icon: ICONS.plant,
-          go: `/machine/${trendsMachine}?tab=plant`,
-        },
-      ]
-    : [
-        {
-          title: 'Monitoring',
-          desc: 'All machines — current power, deviation and status',
-          icon: ICONS.plant,
-          go: '/monitoring',
-        },
-        {
-          title: 'Plant',
-          desc: 'Manage machines — add, rename, remove',
-          icon: ICONS.plant,
-          go: '/monitoring',
-        },
-      ];
+function useGroups({ incidentId }: CriticalContext): Array<[GroupKey, string, Tile[]]> {
+  const monitorTiles: Tile[] = [
+    {
+      title: 'Monitoring',
+      desc: 'All machines — current power, deviation and status',
+      icon: ICONS.plant,
+      go: '/monitoring',
+      flagged: !!incidentId,
+    },
+    {
+      title: 'Plant',
+      desc: 'Manage machines — add, rename, remove',
+      icon: ICONS.plant,
+      go: '/monitoring',
+    },
+  ];
 
   const groups: Array<[GroupKey, string, Tile[]]> = [
     ['monitor', 'Monitor', monitorTiles],
@@ -174,7 +135,7 @@ export default function LaunchView() {
   const navigate = useNavigate();
   const { alerts } = useAlerts();
   const criticalAlert = alerts.find((a) => a.severity === 'critical');
-  const groups = useGroups({ machineId: criticalAlert?.machineId, incidentId: criticalAlert?.incidentId });
+  const groups = useGroups({ incidentId: criticalAlert?.incidentId });
   const [group, setGroup] = useState<GroupKey>('monitor');
   const scrollingRef = useRef(false);
 

@@ -46,6 +46,12 @@ export default function MonitoringView({ machineId }: Props) {
   const criticalMachine = criticalAlert
     ? machines.find((m) => m.id === criticalAlert.machineId)
     : undefined;
+  // The alert's message/devPct are frozen at the moment it fired; show the
+  // machine's current live deviation instead so the banner matches the table.
+  const criticalLiveDev = criticalAlert ? statuses.get(criticalAlert.machineId)?.devPct : undefined;
+  const criticalMessage = criticalAlert && criticalLiveDev !== undefined
+    ? `CRITICAL: ${criticalMachine?.name ?? criticalAlert.machineId} power deviation ${criticalLiveDev}% exceeds critical threshold`
+    : criticalAlert?.message;
 
   return (
     <div className="home">
@@ -81,7 +87,7 @@ export default function MonitoringView({ machineId }: Props) {
         <div className="alarmrow">
           <div className="txt">
             <b>
-              {criticalMachine?.name ?? criticalAlert.machineId} — {criticalAlert.message}
+              {criticalMachine?.name ?? criticalAlert.machineId} — {criticalMessage}
             </b>
             <small>
               {formatTimestamp(criticalAlert.timestamp)} · {criticalAlert.machineId}
