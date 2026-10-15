@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAlerts } from '../hooks/useAlerts';
+import { useOpenIncidents } from '../hooks/useOpenIncidents';
 
 type GroupKey = 'monitor' | 'investigate';
 
@@ -69,17 +69,21 @@ const ICONS: Record<string, ReactElement> = {
 };
 
 interface CriticalContext {
-  incidentId?: string;
+  hasOpenIncident: boolean;
+  // Most recently detected open incident — used only for the
+  // Interventions/Verification/Audit tiles, which (unlike Investigation)
+  // still jump to a single incident rather than a list.
+  latestIncidentId?: string;
 }
 
-function useGroups({ incidentId }: CriticalContext): Array<[GroupKey, string, Tile[]]> {
+function useGroups({ hasOpenIncident, latestIncidentId }: CriticalContext): Array<[GroupKey, string, Tile[]]> {
   const monitorTiles: Tile[] = [
     {
       title: 'Monitoring',
       desc: 'All machines — current power, deviation and status',
       icon: ICONS.plant,
       go: '/monitoring',
-      flagged: !!incidentId,
+      flagged: hasOpenIncident,
     },
     {
       title: 'Dashboard',
@@ -112,17 +116,17 @@ function useGroups({ incidentId }: CriticalContext): Array<[GroupKey, string, Ti
   ];
 
   // Only show the investigate group when there's an active incident to work on.
-  if (incidentId) {
-    const incidentOrMachine = (tab: string) => `/incident/${incidentId}?tab=${tab}`;
+  if (hasOpenIncident) {
+    const incidentOrMachine = (tab: string) => `/incident/${latestIncidentId}?tab=${tab}`;
     groups.push([
       'investigate',
       'Investigate & verify',
       [
         {
           title: 'Investigation',
-          desc: 'AI suggests likely causes, each with the evidence for and against it',
+          desc: 'See every open incident across the plant, then pick one to review the AI\'s likely causes',
           icon: ICONS.ai,
-          go: incidentOrMachine('investigate'),
+          go: '/investigate',
         },
         {
           title: 'Interventions',
@@ -151,9 +155,11 @@ function useGroups({ incidentId }: CriticalContext): Array<[GroupKey, string, Ti
 
 export default function LaunchView() {
   const navigate = useNavigate();
-  const { alerts } = useAlerts();
-  const criticalAlert = alerts.find((a) => a.severity === 'critical');
-  const groups = useGroups({ incidentId: criticalAlert?.incidentId });
+  const { incidents } = useOpenIncidents();
+  const groups = useGroups({
+    hasOpenIncident: incidents.length > 0,
+    latestIncidentId: incidents[0]?.id,
+  });
   const [group, setGroup] = useState<GroupKey>('monitor');
   const scrollingRef = useRef(false);
 

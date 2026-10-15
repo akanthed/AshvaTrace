@@ -1,10 +1,14 @@
 import { useNavigate } from 'react-router-dom';
-import type { Alert, Machine, MachineStatus } from '../types';
+import type { Alert, Incident, Machine, MachineStatus } from '../types';
 import { formatTimestamp } from '../utils/time';
+import { api } from '../services/api';
 
 interface MachineTableProps {
   machines: Machine[];
   statuses: Map<string, MachineStatus>;
+  // Accepted for backward compatibility with existing callers; no longer
+  // used to resolve incidents (see openRow, which always looks up the
+  // open incident directly rather than relying on in-memory alert state).
   alerts?: Alert[];
 }
 
@@ -26,18 +30,22 @@ function rowClass(status: string): string {
   return '';
 }
 
-export default function MachineTable({ machines, statuses, alerts = [] }: MachineTableProps) {
+export default function MachineTable({ machines, statuses }: MachineTableProps) {
   const navigate = useNavigate();
 
-  const openRow = (m: Machine, status: string) => {
-    if (status === 'critical' || status === 'warning') {
-      const alert = alerts.find((a) => a.machineId === m.id && !a.acknowledged);
-      if (alert?.incidentId) {
-        navigate(`/incident/${alert.incidentId}`);
+  // Always check for an open incident on this machine, independent of its
+  // current live status — a reading can drift back to normal while the
+  // incident investigating it is still open (see Sidebar.openMachine).
+  const openRow = async (m: Machine) => {
+    try {
+      const incidents = await api.getIncidentsByMachine(m.id);
+      const open = (incidents ?? []).find((i: Incident) => i.status !== 'closed');
+      if (open) {
+        navigate(`/incident/${open.id}`);
         return;
       }
-      navigate(`/machine/${m.id}?tab=investigate`);
-      return;
+    } catch {
+      // Fall through to the machine page if the lookup fails
     }
     navigate(`/machine/${m.id}?tab=monitoring`);
   };
@@ -63,7 +71,7 @@ export default function MachineTable({ machines, statuses, alerts = [] }: Machin
             const dev = st?.devPct ?? 0;
 
             return (
-              <tr key={m.id} className={rowClass(status)} onClick={() => openRow(m, status)}>
+              <tr key={m.id} className={rowClass(status)} onClick={() => openRow(m)}>
                 <td>
                   <b>{m.id}</b>
                   <br />

@@ -1,8 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import MachineTable from '../components/MachineTable';
-import type { Machine, MachineStatus, Alert } from '../types';
+import type { Machine, MachineStatus, Alert, Incident } from '../types';
+import { api } from '../services/api';
+
+vi.mock('../services/api', () => ({
+  api: {
+    getIncidentsByMachine: vi.fn(),
+  },
+}));
 
 function LocationProbe() {
   const location = useLocation();
@@ -51,6 +58,10 @@ const mockAlerts: Alert[] = [
 ];
 
 describe('MachineTable', () => {
+  beforeEach(() => {
+    (api.getIncidentsByMachine as Mock).mockResolvedValue([]);
+  });
+
   it('renders table headers', () => {
     render(
       <MemoryRouter>
@@ -111,7 +122,21 @@ describe('MachineTable', () => {
     expect(normalRow).not.toHaveClass('row-warn');
   });
 
-  it('navigates to the incident page when clicking a critical row with an open alert', () => {
+  it('navigates to the incident page when clicking a row with an open incident', async () => {
+    const openIncident: Incident = {
+      id: 'INC-1',
+      machineId: 'CNC-03',
+      machineName: 'CNC Mill 03',
+      status: 'investigating',
+      detectedAt: new Date().toISOString(),
+      severity: 'critical',
+      devPct: 1152.1,
+      hypotheses: [],
+      auditLog: [],
+    };
+    (api.getIncidentsByMachine as Mock).mockImplementation((machineId: string) =>
+      Promise.resolve(machineId === 'CNC-03' ? [openIncident] : [])
+    );
     render(
       <MemoryRouter initialEntries={['/']}>
         <MachineTable machines={mockMachines} statuses={mockStatuses} alerts={mockAlerts} />
@@ -122,10 +147,12 @@ describe('MachineTable', () => {
     );
     const criticalRow = screen.getByText('CNC Mill 03').closest('tr')!;
     fireEvent.click(criticalRow);
-    expect(screen.getByTestId('location')).toHaveTextContent('/incident/INC-1');
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/incident/INC-1');
+    });
   });
 
-  it('navigates to the monitoring tab when clicking a normal row', () => {
+  it('navigates to the monitoring tab when clicking a row with no open incident', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <MachineTable machines={mockMachines} statuses={mockStatuses} alerts={mockAlerts} />
@@ -136,6 +163,8 @@ describe('MachineTable', () => {
     );
     const normalRow = screen.getByText('CNC Mill 01').closest('tr')!;
     fireEvent.click(normalRow);
-    expect(screen.getByTestId('location')).toHaveTextContent('/machine/CNC-01?tab=monitoring');
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/machine/CNC-01?tab=monitoring');
+    });
   });
 });
