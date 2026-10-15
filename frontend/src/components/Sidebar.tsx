@@ -78,19 +78,20 @@ export default function Sidebar() {
   };
 
   // A machine with an open incident goes straight to its incident page
-  // (Investigate/Actions/Verify/Audit) — otherwise it lands on the Monitor tabs.
-  const openMachine = async (machineId: string, status: string) => {
-    if (status === 'critical' || status === 'warning') {
-      try {
-        const incidents = await api.getIncidentsByMachine(machineId);
-        const open = (incidents ?? []).find((i: Incident) => i.status !== 'closed');
-        if (open) {
-          navigate(`/incident/${open.id}`);
-          return;
-        }
-      } catch {
-        // Fall through to the machine page if the lookup fails
+  // (Investigate/Actions/Verify/Audit) — otherwise it lands on the Monitor
+  // tabs. Checked regardless of the machine's current live status: a reading
+  // can drift back to normal while the incident investigating it is still
+  // open, and that incident should still be reachable from the sidebar.
+  const openMachine = async (machineId: string) => {
+    try {
+      const incidents = await api.getIncidentsByMachine(machineId);
+      const open = (incidents ?? []).find((i: Incident) => i.status !== 'closed');
+      if (open) {
+        navigate(`/incident/${open.id}`);
+        return;
       }
+    } catch {
+      // Fall through to the machine page if the lookup fails
     }
     navigate(`/machine/${machineId}`);
   };
@@ -120,7 +121,7 @@ export default function Sidebar() {
                 <button
                   key={m.id}
                   className={`m${isSel ? ' sel' : ''}`}
-                  onClick={() => openMachine(m.id, st)}
+                  onClick={() => openMachine(m.id)}
                 >
                   <span className={`st ${stClass}`} />
                   <span>
