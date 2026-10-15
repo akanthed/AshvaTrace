@@ -82,10 +82,28 @@ function useGroups({ incidentId }: CriticalContext): Array<[GroupKey, string, Ti
       flagged: !!incidentId,
     },
     {
+      title: 'Dashboard',
+      desc: "Pick a machine and view its own dashboard of live tiles",
+      icon: ICONS.stack,
+      go: '/monitoring?tab=dashboard',
+    },
+    {
+      title: 'Threshold',
+      desc: "Pick a machine and set the warning and critical limits that decide its status",
+      icon: ICONS.gauge,
+      go: '/monitoring?tab=threshold',
+    },
+    {
+      title: 'Trends',
+      desc: 'Pick a machine and view its power over time, actual vs. expected',
+      icon: ICONS.chart,
+      go: '/monitoring?tab=trends',
+    },
+    {
       title: 'Plant',
       desc: 'Manage machines — add, rename, remove',
       icon: ICONS.plant,
-      go: '/monitoring',
+      go: '/monitoring?tab=plant',
     },
   ];
 

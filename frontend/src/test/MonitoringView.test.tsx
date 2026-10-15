@@ -63,7 +63,7 @@ describe('MonitoringView', () => {
         <MonitoringView />
       </MemoryRouter>
     );
-    expect(await screen.findByText('Monitoring')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Monitoring' })).toBeInTheDocument();
   });
 
   it('displays all 6 machines in the table', async () => {
