@@ -8,6 +8,11 @@ function pillClass(severity: string): string {
   return severity === 'critical' ? 'crit' : 'warn';
 }
 
+// Mirrors the backend's OPEN_STATUSES (incidentService.ts) — 'verified' and
+// 'closed' are both resolved; only these three statuses mean the incident
+// still needs investigation/action.
+const OPEN_STATUSES = ['open', 'investigating', 'action_taken'];
+
 export function InvestigationListView() {
   const navigate = useNavigate();
   const [incidents, setIncidents] = useState<Incident[]>([]);
@@ -17,7 +22,7 @@ export function InvestigationListView() {
     api
       .getIncidents()
       .then((all) => {
-        const open = all.filter((i) => i.status !== 'closed');
+        const open = all.filter((i) => OPEN_STATUSES.includes(i.status));
         open.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
         setIncidents(open);
       })

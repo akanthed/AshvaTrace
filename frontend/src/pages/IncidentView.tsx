@@ -182,7 +182,6 @@ export function IncidentView() {
         <span className={`pill ${incident.severity}`}>{incident.severity}</span>
         <span className="pill info">{incident.status}</span>
         <div className="sp" />
-        <button className="ghost" onClick={() => navigate(-1)} style={{ fontSize: 13, padding: '4px 10px' }}>← Back</button>
       </div>
 
       {incident.status !== 'closed' && availableStatuses.length > 0 && (
