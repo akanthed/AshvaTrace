@@ -1,5 +1,5 @@
 import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, inspectToolImage, InvestigationTraceStep } from '../utils/ai';
-import { getMachineById, getMachineStatus, getMachineSeries } from './machineService';
+import { getMachineById, getMachineStatus, getMachineSeries, getMachines } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
 import { retrieveSops, getSopById } from './sopService';
 
@@ -69,7 +69,10 @@ function persistIncident(incident: Incident): void {
 }
 
 // Load persisted incidents from BigQuery into the in-memory store on boot so
-// the investigation history survives a server restart.
+// the investigation history survives a server restart. Incidents for a
+// machine that no longer exists (deleted since the incident was recorded)
+// are skipped — otherwise deleted demo/test machines (e.g. "machine 1",
+// GRD-01, PRS-01) keep reappearing in incident lists forever.
 export async function loadPersistedIncidents(): Promise<void> {
   let rows: IncidentRow[] = [];
   try {
@@ -77,8 +80,10 @@ export async function loadPersistedIncidents(): Promise<void> {
   } catch {
     return;
   }
+  const liveMachineIds = new Set(getMachines().map((m) => m.id));
   for (const row of rows) {
     if (incidents.has(row.id)) continue;
+    if (!liveMachineIds.has(row.machine_id)) continue;
     const incident: Incident = {
       id: row.id,
       machineId: row.machine_id,
@@ -320,6 +325,17 @@ export function seedPastIncidents(): void {
 
 export function getIncidents(): Incident[] {
   return Array.from(incidents.values());
+}
+
+// Remove all in-memory incidents for a machine — called when the machine
+// itself is deleted, so its incidents don't keep showing up in incident
+// lists for the rest of the process lifetime (BigQuery rows are left as
+// history; loadPersistedIncidents() re-filters them against live machines
+// on next boot).
+export function deleteIncidentsForMachine(machineId: string): void {
+  for (const [id, inc] of incidents) {
+    if (inc.machineId === machineId) incidents.delete(id);
+  }
 }
 
 export function getIncidentById(id: string): Incident | null {

@@ -9,6 +9,8 @@ import {
   deleteMachine,
 } from '../services/machineService';
 import { inspectToolImage } from '../utils/ai';
+import { deleteIncidentsForMachine } from '../services/incidentService';
+import { deleteAlertsForMachine } from '../services/alertService';
 
 export async function getMachines(_req: Request, res: Response) {
   const machines = fetchMachines();
@@ -87,6 +89,10 @@ export async function removeMachine(req: Request, res: Response) {
     res.status(404).json({ error: 'Machine not found' });
     return;
   }
+  // Cascade: a deleted machine's incidents/alerts shouldn't keep showing up
+  // in incident lists, the bell, or the notification badge.
+  deleteIncidentsForMachine(req.params.id);
+  deleteAlertsForMachine(req.params.id);
   res.status(204).send();
 }
 

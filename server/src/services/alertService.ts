@@ -19,7 +19,9 @@ const alerts: Map<string, Alert> = new Map();
 // Load persisted alerts from BigQuery into the in-memory store on boot so a
 // server restart doesn't forget which machine+severity combos are already
 // alerted (which would otherwise defeat checkThresholds's dedup check and
-// let it recreate an incident for an already-ongoing problem).
+// let it recreate an incident for an already-ongoing problem). Alerts for a
+// machine that no longer exists are skipped — same reasoning as
+// loadPersistedIncidents().
 export async function loadPersistedAlerts(): Promise<void> {
   let rows: AlertRow[] = [];
   try {
@@ -27,8 +29,10 @@ export async function loadPersistedAlerts(): Promise<void> {
   } catch {
     return;
   }
+  const liveMachineIds = new Set(getMachines().map((m) => m.id));
   for (const row of rows) {
     if (alerts.has(row.id)) continue;
+    if (!liveMachineIds.has(row.machine_id)) continue;
     alerts.set(row.id, {
       id: row.id,
       machineId: row.machine_id,
@@ -54,6 +58,15 @@ export function getAlerts(): Alert[] {
 
 export function getAlertsByMachine(machineId: string): Alert[] {
   return getAlerts().filter((a) => a.machineId === machineId);
+}
+
+// Remove all in-memory alerts for a machine — called when the machine itself
+// is deleted. See deleteIncidentsForMachine() in incidentService for the
+// same reasoning.
+export function deleteAlertsForMachine(machineId: string): void {
+  for (const [id, alert] of alerts) {
+    if (alert.machineId === machineId) alerts.delete(id);
+  }
 }
 
 export function acknowledgeAlert(alertId: string, _body: { acknowledgedBy: string }): Alert | null {
