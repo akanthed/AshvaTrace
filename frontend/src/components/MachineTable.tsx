@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import type { Alert, Machine, MachineStatus } from '../types';
+import { formatTimestamp } from '../utils/time';
 
 interface MachineTableProps {
   machines: Machine[];
@@ -80,7 +81,7 @@ export default function MachineTable({ machines, statuses, alerts = [] }: Machin
                     <span>{statusLabel(status)}</span>
                   </span>
                 </td>
-                <td className="mono">{st?.timestamp ?? '—'}</td>
+                <td className="mono">{formatTimestamp(st?.timestamp)}</td>
               </tr>
             );
           })}

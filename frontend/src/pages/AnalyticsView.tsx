@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { ShiftSummary, ThresholdViolation, CostImpact } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { formatTimestamp } from '../utils/time';
 
 function fmtUsd(n: number): string {
   return n >= 1000 ? `$${(n / 1000).toFixed(1)}K` : `$${n.toFixed(0)}`;
@@ -170,7 +171,7 @@ export function AnalyticsView() {
                   {violations.slice(0, 20).map((v, i) => (
                     <tr key={i}>
                       <td>{v.machineName}</td>
-                      <td className="mono">{v.timestamp}</td>
+                      <td className="mono">{formatTimestamp(v.timestamp)}</td>
                       <td className="num mono" style={{ color: v.severity === 'critical' ? 'var(--crit)' : 'var(--warn)' }}>
                         {v.devPct > 0 ? '+' : ''}
                         {v.devPct}%

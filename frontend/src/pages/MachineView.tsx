@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Incident, Machine, MachineSeries, MachineStatus, Thresholds } from '../types';
 import { api, connectSSE } from '../services/api';
+import { useMachines } from '../hooks/useMachines';
 import { TrendsChart } from '../components/TrendsChart';
 import { PlantManager } from '../components/PlantManager';
 import { DashboardCanvas } from '../components/DashboardCanvas';
@@ -55,6 +56,12 @@ function isTabKey(value: string | null): value is TabKey {
   return !!value && (TAB_KEYS as string[]).includes(value);
 }
 
+const DASHBOARD_TILE_KEYS = ['power', 'deviation'];
+const DASHBOARD_TILE_LABELS: Record<string, string> = {
+  power: 'Active power',
+  deviation: 'Power deviation',
+};
+
 function groupForTab(tab: TabKey): GroupKey {
   return GROUPS.find(([, , tabs]) => tabs.some(([k]) => k === tab))![0];
 }
@@ -94,8 +101,7 @@ export function MachineView() {
   const [dashTiles, setDashTiles] = useState<string[]>(['power', 'deviation']);
   const [thresholds, setThresholds] = useState<Thresholds>({ upperAlarm: 10, upperWarning: 5, lowerWarning: -5, lowerAlarm: -10 });
   const [incident, setIncident] = useState<Incident | null>(null);
-  const [machines, setMachines] = useState<Machine[]>([]);
-  const refreshMachines = () => api.getMachines().then(setMachines).catch(() => {});
+  const { machines, refresh: refreshMachines } = useMachines();
 
   useEffect(() => {
     const paramTab = searchParams.get('tab');
@@ -110,11 +116,6 @@ export function MachineView() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  useEffect(() => {
-    refreshMachines();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -207,6 +208,9 @@ export function MachineView() {
               />
             )}
           </div>
+          <div className="body" style={{ paddingTop: 0 }}>
+            <small style={{ color: 'var(--muted)' }}>Drag the handles on the bar below the chart to zoom into a time range.</small>
+          </div>
         </section>
       )}
 
@@ -237,6 +241,15 @@ export function MachineView() {
               <div className="empty">
                 <b style={{ color: 'var(--fg)' }}>No tiles yet</b>
                 Nothing to show here yet.
+              </div>
+            )}
+            {DASHBOARD_TILE_KEYS.some((k) => !dashTiles.includes(k)) && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {DASHBOARD_TILE_KEYS.filter((k) => !dashTiles.includes(k)).map((k) => (
+                  <button key={k} className="ghost" onClick={() => setDashTiles((t) => [...t, k])}>
+                    + {DASHBOARD_TILE_LABELS[k]}
+                  </button>
+                ))}
               </div>
             )}
           </div>

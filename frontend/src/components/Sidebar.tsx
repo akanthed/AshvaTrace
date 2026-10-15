@@ -2,9 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMachines } from '../hooks/useMachines';
 import { api } from '../services/api';
-import type { Incident } from '../types';
-
-const OPEN_STATUSES: Incident['status'][] = ['open', 'investigating', 'action_taken'];
 
 function statusToSt(status: string): 'ok' | 'warn' | 'crit' {
   if (status === 'critical') return 'crit';
@@ -23,31 +20,7 @@ export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-  const [openIncidentByMachine, setOpenIncidentByMachine] = useState<Map<string, string>>(new Map());
   const [incidentMachineId, setIncidentMachineId] = useState<string | undefined>();
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = () => {
-      api
-        .getIncidents()
-        .then((incidents) => {
-          if (cancelled) return;
-          const next = new Map<string, string>();
-          for (const inc of incidents) {
-            if (OPEN_STATUSES.includes(inc.status)) next.set(inc.machineId, inc.id);
-          }
-          setOpenIncidentByMachine(next);
-        })
-        .catch(() => {});
-    };
-    load();
-    const interval = setInterval(load, 10000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
 
   // Extract the route id from the pathname (the Sidebar is rendered outside
   // <Routes>, so useParams() is unavailable here).
@@ -128,10 +101,7 @@ export default function Sidebar() {
                 <button
                   key={m.id}
                   className={`m${isSel ? ' sel' : ''}`}
-                  onClick={() => {
-                    const openIncidentId = openIncidentByMachine.get(m.id);
-                    navigate(openIncidentId ? `/incident/${openIncidentId}` : `/machine/${m.id}`);
-                  }}
+                  onClick={() => navigate(`/machine/${m.id}`)}
                 >
                   <span className={`st ${stClass}`} />
                   <span>

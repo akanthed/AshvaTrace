@@ -12,6 +12,7 @@ import {
   Brush,
 } from 'recharts';
 import type { Sample } from '../types';
+import { formatTimestamp } from '../utils/time';
 
 interface Props {
   series: Sample[];
@@ -39,11 +40,11 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
   const isZoomed = brushRange.startIndex !== undefined || brushRange.endIndex !== undefined;
 
   return (
-    <div className="chart-container" style={{ width: '100%', height: '100%', minHeight: 280 }}>
+    <div className="chart-container" style={{ width: '100%', height: '100%', minHeight: 280, position: 'relative' }}>
       {isZoomed && (
         <button
           className="tab"
-          style={{ marginBottom: 6 }}
+          style={{ position: 'absolute', top: 4, right: 4, zIndex: 1 }}
           onClick={() => setBrushRange({ startIndex: 0, endIndex: data.length - 1 })}
         >
           Reset zoom
@@ -57,6 +58,7 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
             stroke="#8b949e"
             fontSize={11}
             tickCount={10}
+            tickFormatter={formatTimestamp}
           />
           <YAxis
             stroke="#8b949e"
@@ -72,6 +74,7 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
               fontSize: '12px',
             }}
             labelStyle={{ color: '#8b949e' }}
+            labelFormatter={(label) => formatTimestamp(typeof label === 'string' ? label : String(label))}
           />
           <Legend wrapperStyle={{ fontSize: '12px' }} />
           <Line
@@ -113,6 +116,7 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
             stroke="#f39200"
             fill="#161b22"
             travellerWidth={8}
+            tickFormatter={formatTimestamp}
             startIndex={brushRange.startIndex}
             endIndex={brushRange.endIndex}
             onChange={(range) => setBrushRange(range)}

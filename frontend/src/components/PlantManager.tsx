@@ -57,6 +57,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm(`Delete machine ${id}? This cannot be undone.`)) return;
     setError(null);
     try {
       await api.deleteMachine(id);
@@ -73,7 +74,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
       <header>
         <h3>Plant · Machines</h3>
         <div className="sp" />
-        <span className="prov">Add, rename or remove machines — set alarm/warning limits in the Threshold tab</span>
+        <span className="prov">Add, rename or remove machines</span>
       </header>
       <div className="body" style={{ display: 'grid', gap: 16 }}>
         {error && <div className="prov" style={{ color: 'var(--crit)' }}>{error}</div>}

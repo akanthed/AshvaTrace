@@ -5,6 +5,7 @@ import MachineTable from '../components/MachineTable';
 import { PlantManager } from '../components/PlantManager';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { api } from '../services/api';
+import { formatTimestamp } from '../utils/time';
 import type { VisionInspection } from '../types';
 
 interface Props {
@@ -12,7 +13,7 @@ interface Props {
 }
 
 export default function MonitoringView({ machineId }: Props) {
-  const { machines: allMachines, statuses, loading } = useMachines();
+  const { machines: allMachines, statuses, loading, refresh: refreshMachines } = useMachines();
   const { alerts } = useAlerts();
   const [inspection, setInspection] = useState<VisionInspection | null>(null);
   const [inspecting, setInspecting] = useState(false);
@@ -83,7 +84,7 @@ export default function MonitoringView({ machineId }: Props) {
               {criticalMachine?.name ?? criticalAlert.machineId} — {criticalAlert.message}
             </b>
             <small>
-              {criticalAlert.timestamp} · {criticalAlert.machineId}
+              {formatTimestamp(criticalAlert.timestamp)} · {criticalAlert.machineId}
             </small>
           </div>
           <a
@@ -110,7 +111,7 @@ export default function MonitoringView({ machineId }: Props) {
       </div>
 
       {!machineId && (
-        <PlantManager machines={allMachines} onChange={() => {}} />
+        <PlantManager machines={allMachines} onChange={refreshMachines} />
       )}
 
       {machineId && (
