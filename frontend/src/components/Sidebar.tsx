@@ -54,7 +54,6 @@ export default function Sidebar() {
   const machineMatch = location.pathname.match(/^\/machine\/([^/]+)/);
   const incidentMatch = location.pathname.match(/^\/incident\/([^/]+)/);
   const isIncidentRoute = !!incidentMatch;
-  const routeId = machineMatch?.[1] || incidentMatch?.[1] || undefined;
 
   // On an incident page, the route param is the incident id, not a machine
   // id — resolve it to a machine id so the right sidebar row still highlights.

@@ -83,20 +83,20 @@ function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey,
     ? [
         {
           title: 'Monitoring',
-          desc: 'A machine's current power, expected power and deviation',
+          desc: "A machine's current power, expected power and deviation",
           icon: ICONS.plant,
           go: `/machine/${trendsMachine}?tab=monitoring`,
           flagged: !!incidentId,
         },
         {
           title: 'Dashboard',
-          desc: 'A machine's own dashboard of live tiles',
+          desc: "A machine's own dashboard of live tiles",
           icon: ICONS.stack,
           go: `/machine/${trendsMachine}?tab=dashboard`,
         },
         {
           title: 'Threshold',
-          desc: 'The warning and critical limits that decide a machine's status',
+          desc: "The warning and critical limits that decide a machine's status",
           icon: ICONS.gauge,
           go: `/machine/${trendsMachine}?tab=threshold`,
         },

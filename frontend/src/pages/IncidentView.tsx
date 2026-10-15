@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import type { Incident, PastIncidentSummary } from '../types';
 import { api } from '../services/api';
 import { HypothesisList } from '../components/HypothesisList';
@@ -191,15 +191,13 @@ export function IncidentView() {
                 <option key={s.value} value={s.value}>{s.label}</option>
               ))}
             </select>
-            {incident.status !== 'closed' && (
-              <input
-                type="text"
-                placeholder="Resolution comment (optional)"
-                value={resolutionComment}
-                onChange={(e) => setResolutionComment(e.target.value)}
-                style={{ flex: 1, minWidth: 200, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
-              />
-            )}
+            <input
+              type="text"
+              placeholder="Resolution comment (optional)"
+              value={resolutionComment}
+              onChange={(e) => setResolutionComment(e.target.value)}
+              style={{ flex: 1, minWidth: 200, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
+            />
             {statusError && <span style={{ color: 'var(--crit)', fontSize: 12 }}>{statusError}</span>}
           </div>
         </div>
