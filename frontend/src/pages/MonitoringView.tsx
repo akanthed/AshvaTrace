@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMachines } from '../hooks/useMachines';
 import { useAlerts } from '../hooks/useAlerts';
 import MachineTable from '../components/MachineTable';
+import { PlantManager } from '../components/PlantManager';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { api } from '../services/api';
 import type { VisionInspection } from '../types';
@@ -107,6 +108,10 @@ export default function MonitoringView({ machineId }: Props) {
           <MachineTable machines={machines} statuses={statuses} alerts={alerts} />
         </div>
       </div>
+
+      {!machineId && (
+        <PlantManager machines={allMachines} onChange={() => {}} />
+      )}
 
       {machineId && (
         <div className="panel">

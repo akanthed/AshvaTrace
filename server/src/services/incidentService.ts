@@ -120,6 +120,91 @@ export function getOpenIncidentForMachine(machineId: string): Incident | null {
   return null;
 }
 
+// ---------------------------------------------------------------------------
+// Past-incident retrieval: find previously resolved incidents on the same
+// machine so the AI can reference what was tried before and what worked.
+// ---------------------------------------------------------------------------
+
+export interface PastIncidentSummary {
+  id: string;
+  detectedAt: string;
+  devPct: number;
+  severity: string;
+  status: string;
+  topHypothesis: string | null;
+  actionTaken: string | null;
+  verificationPassed: boolean | null;
+  resolutionComment: string | null;
+}
+
+/**
+ * Find past resolved incidents on the same machine, ranked by how similar
+ * their deviation was to the current incident. Returns at most `limit`
+ * incidents (default 3), most similar first.
+ */
+export function findSimilarIncidents(
+  machineId: string,
+  currentDevPct: number,
+  excludeId?: string,
+  limit = 3
+): PastIncidentSummary[] {
+  const resolved: Incident[] = [];
+  for (const inc of incidents.values()) {
+    if (inc.machineId !== machineId) continue;
+    if (inc.id === excludeId) continue;
+    // Only include incidents that reached a terminal state with a resolution
+    if (inc.status !== 'verified' && inc.status !== 'closed') continue;
+    resolved.push(inc);
+  }
+
+  if (resolved.length === 0) return [];
+
+  // Rank by deviation similarity (closer devPct = more similar), then by
+  // recency as a tiebreaker.
+  resolved.sort((a, b) => {
+    const devDiff = Math.abs(a.devPct - currentDevPct) - Math.abs(b.devPct - currentDevPct);
+    if (devDiff !== 0) return devDiff;
+    return new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime();
+  });
+
+  return resolved.slice(0, limit).map((inc) => {
+    // Extract the top hypothesis (highest confidence)
+    const topHyp = inc.hypotheses.length > 0
+      ? inc.hypotheses.reduce((best, h) => (h.confidence > best.confidence ? h : best), inc.hypotheses[0])
+      : null;
+
+    // Extract the action from the simulation
+    const actionTaken = inc.simulation?.action || null;
+
+    // Verification result
+    const verificationPassed = inc.verification ? inc.verification.passed : null;
+
+    // Resolution comment from the last audit entry that mentions resolution
+    let resolutionComment: string | null = null;
+    for (let i = inc.auditLog.length - 1; i >= 0; i--) {
+      const entry = inc.auditLog[i];
+      if (entry.action === 'incident_resolved' || entry.action === 'status_changed') {
+        if (entry.details && !entry.details.startsWith('Status changed to')) {
+          resolutionComment = entry.details.replace(/^Status → \w+: /, '');
+        }
+        break;
+      }
+    }
+
+    return {
+      id: inc.id,
+      detectedAt: inc.detectedAt,
+      devPct: inc.devPct,
+      severity: inc.severity,
+      status: inc.status,
+      topHypothesis: topHyp?.title || null,
+      actionTaken,
+      verificationPassed,
+      resolutionComment,
+    };
+  });
+}
+
 export async function investigateIncident(
   incidentId: string,
   context: { machineId: string; devPct: number; signals: Record<string, number> }
@@ -156,6 +241,11 @@ export async function investigateIncident(
   // incident's signals so the model reasons over real reference text instead
   // of its own memory of what an SOP might say.
   const sops = await retrieveSops(enrichedContext.signals);
+
+  // Retrieve past resolved incidents on this machine so the AI can reference
+  // what was tried before and what worked — "last time this pattern appeared,
+  // the fix was X and verification confirmed it."
+  const pastIncidents = findSimilarIncidents(incident.machineId, incident.devPct, incident.id);
 
   // Agentic investigation: the model calls tools to pull REAL readings from
   // the machine's series before forming hypotheses (see investigateAgentic
@@ -229,7 +319,7 @@ export async function investigateIncident(
   let hypotheses;
   let trace: InvestigationTraceStep[] = [];
   try {
-    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor);
+    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents);
     hypotheses = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops);
     trace = agentic.trace;
   } catch (err: any) {
@@ -383,6 +473,41 @@ export function createIncident(machineId: string, devPct: number, severity: 'war
   };
 
   incidents.set(id, incident);
+  persistIncident(incident);
+  return incident;
+}
+
+const VALID_TRANSITIONS: Record<Incident['status'], Incident['status'][]> = {
+  open: ['investigating', 'closed'],
+  investigating: ['action_taken', 'open', 'closed'],
+  action_taken: ['verified', 'open', 'closed'],
+  verified: ['closed'],
+  closed: [],
+};
+
+export function updateIncidentStatus(
+  incidentId: string,
+  newStatus: Incident['status'],
+  resolutionComment?: string
+): Incident | null {
+  const incident = incidents.get(incidentId);
+  if (!incident) return null;
+
+  const allowed = VALID_TRANSITIONS[incident.status];
+  if (!allowed.includes(newStatus)) {
+    throw new Error(`Cannot transition from '${incident.status}' to '${newStatus}'. Allowed: ${allowed.join(', ')}`);
+  }
+
+  incident.status = newStatus;
+  const entry: AuditEntry = {
+    timestamp: new Date().toISOString(),
+    actor: 'engineer',
+    action: newStatus === 'closed' ? 'incident_resolved' : 'status_changed',
+    details: resolutionComment
+      ? `Status → ${newStatus}: ${resolutionComment}`
+      : `Status changed to ${newStatus}`,
+  };
+  incident.auditLog.push(entry);
   persistIncident(incident);
   return incident;
 }

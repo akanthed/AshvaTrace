@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMachines } from '../hooks/useMachines';
 import { api } from '../services/api';
 import type { Incident } from '../types';
@@ -20,7 +20,6 @@ function statusLabel(status: string): string {
 
 export default function Sidebar() {
   const { machines, statuses } = useMachines();
-  const { id: routeId } = useParams<{ id: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -50,17 +49,23 @@ export default function Sidebar() {
     };
   }, []);
 
+  // Extract the route id from the pathname (the Sidebar is rendered outside
+  // <Routes>, so useParams() is unavailable here).
+  const machineMatch = location.pathname.match(/^\/machine\/([^/]+)/);
+  const incidentMatch = location.pathname.match(/^\/incident\/([^/]+)/);
+  const isIncidentRoute = !!incidentMatch;
+  const routeId = machineMatch?.[1] || incidentMatch?.[1] || undefined;
+
   // On an incident page, the route param is the incident id, not a machine
   // id — resolve it to a machine id so the right sidebar row still highlights.
-  const isIncidentRoute = location.pathname.startsWith('/incident/');
   useEffect(() => {
-    if (!isIncidentRoute || !routeId) {
+    if (!isIncidentRoute || !incidentMatch?.[1]) {
       setIncidentMachineId(undefined);
       return;
     }
     let cancelled = false;
     api
-      .getIncident(routeId)
+      .getIncident(incidentMatch[1])
       .then((inc) => {
         if (!cancelled) setIncidentMachineId(inc.machineId);
       })
@@ -70,9 +75,9 @@ export default function Sidebar() {
     return () => {
       cancelled = true;
     };
-  }, [isIncidentRoute, routeId]);
+  }, [isIncidentRoute, incidentMatch?.[1]]);
 
-  const selectedId = isIncidentRoute ? incidentMachineId : routeId;
+  const selectedId = isIncidentRoute ? incidentMachineId : machineMatch?.[1];
 
   // Machine `type` values are lowercase process names from the backend
   // ('milling', 'turning', 'grinding', 'stamping'), not 'Mill'/'Lathe' — group

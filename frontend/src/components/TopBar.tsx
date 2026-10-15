@@ -44,8 +44,10 @@ export default function TopBar() {
   const navigate = useNavigate();
   const { alerts } = useAlerts();
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const unacknowledged = alerts.filter((a) => !a.acknowledged);
   const criticalAlert = alerts.find((a) => a.severity === 'critical');
@@ -59,6 +61,15 @@ export default function TopBar() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [open]);
 
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, [profileOpen]);
+
   const openAlert = (alert: (typeof alerts)[number]) => {
     setOpen(false);
     navigate(alert.incidentId ? `/incident/${alert.incidentId}` : `/machine/${alert.machineId}`);
@@ -68,12 +79,31 @@ export default function TopBar() {
     <header className="top">
       {/* Left: utility icons + brand */}
       <div className="top-left">
-        <button className="ico-btn" title="Account" aria-label="Account">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-        </button>
+        <div className="notif-wrap" ref={profileRef}>
+          <button className="ico-btn" title="Account" aria-label="Account" onClick={() => setProfileOpen((o) => !o)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </button>
+          {profileOpen && (
+            <div className="notif-panel" style={{ minWidth: 180 }}>
+              <header>Account</header>
+              <ul style={{ display: 'grid', gap: 4 }}>
+                <li style={{ cursor: 'default', padding: '6px 8px' }}>
+                  <b>Engineer</b>
+                  <small style={{ display: 'block' }}>Pune Plant · Shift A</small>
+                </li>
+                <li onClick={() => { setProfileOpen(false); navigate('/settings'); }} style={{ cursor: 'pointer', padding: '6px 8px' }}>
+                  <b>Settings</b>
+                </li>
+                <li style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 12 }}>
+                  Simulated session — no real auth
+                </li>
+              </ul>
+            </div>
+          )}
+        </div>
         <button className="ico-btn" title="Home" aria-label="Home" onClick={() => navigate('/')}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -156,15 +186,15 @@ export default function TopBar() {
 
       <button
         className="ico-btn"
-        title="Open the active incident"
+        title={criticalAlert ? `Open active incident (${criticalAlert.machineName})` : 'No active critical incident'}
         aria-label="Open the active incident"
         onClick={() => criticalAlert && navigate(criticalAlert.incidentId ? `/incident/${criticalAlert.incidentId}` : `/machine/${criticalAlert.machineId}`)}
         disabled={!criticalAlert}
       >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 2v10" />
-          <path d="M18.4 6.6a9 9 0 1 1-12.77.04" />
-          <path d="M12 22a4 4 0 0 0 4-4" />
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
         </svg>
         {criticalAlert && <span className="badge">1</span>}
       </button>

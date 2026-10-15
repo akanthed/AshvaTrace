@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type { Incident, Machine, MachineSeries, MachineStatus, Thresholds } from '../types';
 import { api, connectSSE } from '../services/api';
 import { TrendsChart } from '../components/TrendsChart';
@@ -73,6 +73,7 @@ function pillClass(status: string): string {
 
 export function MachineView() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [machine, setMachine] = useState<Machine | null>(null);
   const [status, setStatus] = useState<MachineStatus | null>(null);
@@ -168,7 +169,7 @@ export function MachineView() {
           <b>{machine.type}</b>
         </div>
         <div className="sp" />
-        <Link to="/">← Home</Link>
+        <button className="ghost" onClick={() => navigate(-1)} style={{ fontSize: 13, padding: '4px 10px' }}>← Back</button>
       </div>
 
       <div className="tabs" role="tablist">

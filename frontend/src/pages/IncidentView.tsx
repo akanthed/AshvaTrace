@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
-import type { Incident } from '../types';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
+import type { Incident, PastIncidentSummary } from '../types';
 import { api } from '../services/api';
 import { HypothesisList } from '../components/HypothesisList';
 import { AuditLog } from '../components/AuditLog';
@@ -29,6 +29,7 @@ function isTabKey(value: string | null): value is TabKey {
 
 export function IncidentView() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [incident, setIncident] = useState<Incident | null>(null);
   const [selectedHyp, setSelectedHyp] = useState<string | undefined>();
@@ -38,6 +39,10 @@ export function IncidentView() {
   const [investigateError, setInvestigateError] = useState<string | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [simulateError, setSimulateError] = useState<string | null>(null);
+  const [resolutionComment, setResolutionComment] = useState('');
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [pastIncidents, setPastIncidents] = useState<PastIncidentSummary[]>([]);
   const initialTab = searchParams.get('tab');
   const [tab, setTabState] = useState<TabKey>(isTabKey(initialTab) ? initialTab : 'investigate');
   const setTab = (next: TabKey) => {
@@ -62,6 +67,10 @@ export function IncidentView() {
       .then(setIncident)
       .catch(() => {})
       .finally(() => setLoading(false));
+    api
+      .getSimilarIncidents(id)
+      .then(setPastIncidents)
+      .catch(() => {});
   }, [id]);
 
   if (loading) return <LoadingSpinner label="Loading incident…" />;
@@ -131,6 +140,32 @@ export function IncidentView() {
     }
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!incident) return;
+    setUpdatingStatus(true);
+    setStatusError(null);
+    try {
+      const result = await api.updateIncidentStatus(incident.id, {
+        status: newStatus,
+        resolutionComment: resolutionComment || undefined,
+      });
+      setIncident(result);
+      setResolutionComment('');
+    } catch (err: any) {
+      setStatusError(err.message || 'Failed to update status');
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const STATUS_OPTIONS: Array<{ value: string; label: string; from: string[] }> = [
+    { value: 'investigating', label: 'Investigating', from: ['open'] },
+    { value: 'action_taken', label: 'Action Taken', from: ['investigating'] },
+    { value: 'verified', label: 'Verified', from: ['action_taken'] },
+    { value: 'closed', label: 'Closed / Resolved', from: ['open', 'investigating', 'action_taken', 'verified'] },
+  ];
+  const availableStatuses = STATUS_OPTIONS.filter((s) => s.from.includes(incident?.status ?? ''));
+
   return (
     <div className="view">
       <div className="inc-head">
@@ -138,8 +173,37 @@ export function IncidentView() {
         <span className={`pill ${incident.severity}`}>{incident.severity}</span>
         <span className="pill info">{incident.status}</span>
         <div className="sp" />
-        <Link to="/">← Home</Link>
+        <button className="ghost" onClick={() => navigate(-1)} style={{ fontSize: 13, padding: '4px 10px' }}>← Back</button>
       </div>
+
+      {incident.status !== 'closed' && availableStatuses.length > 0 && (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="body" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>Status:</span>
+            <select
+              value=""
+              onChange={(e) => e.target.value && handleStatusChange(e.target.value)}
+              disabled={updatingStatus}
+              style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
+            >
+              <option value="">Change status…</option>
+              {availableStatuses.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+            {incident.status !== 'closed' && (
+              <input
+                type="text"
+                placeholder="Resolution comment (optional)"
+                value={resolutionComment}
+                onChange={(e) => setResolutionComment(e.target.value)}
+                style={{ flex: 1, minWidth: 200, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
+              />
+            )}
+            {statusError && <span style={{ color: 'var(--crit)', fontSize: 12 }}>{statusError}</span>}
+          </div>
+        </div>
+      )}
 
       <div className="tabs" role="tablist">
         {TAB_KEYS.map((k) => (
@@ -163,6 +227,37 @@ export function IncidentView() {
         <div className="body" style={{ display: 'grid', gap: 16 }}>
           {tab === 'investigate' && (
             <>
+              {pastIncidents.length > 0 && (
+                <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
+                  <h4 style={{ margin: 0, fontSize: 13, color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                    Past incidents on this machine
+                  </h4>
+                  {pastIncidents.map((p) => (
+                    <article key={p.id} className="hyp">
+                      <h4>
+                        <span className="rank">{p.id}</span>
+                        {p.topHypothesis || 'Unknown cause'}
+                        <span className={`pill ${p.verificationPassed ? 'ok' : p.verificationPassed === false ? 'crit' : 'info'}`}>
+                          {p.verificationPassed ? 'Verified' : p.verificationPassed === false ? 'Fix failed' : 'Closed'}
+                        </span>
+                        <span className="pill info">{p.devPct}% dev</span>
+                      </h4>
+                      <div style={{ fontSize: 13, display: 'grid', gap: 4 }}>
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                          {new Date(p.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        {p.actionTaken && (
+                          <span><span style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fix: </span>{p.actionTaken}</span>
+                        )}
+                        {p.resolutionComment && (
+                          <span style={{ color: 'var(--muted)' }}>{p.resolutionComment}</span>
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
               {incident.hypotheses.length === 0 && (
                 <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
                   <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start' }}>

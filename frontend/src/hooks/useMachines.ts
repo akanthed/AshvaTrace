@@ -1,12 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Machine, MachineStatus } from '../types';
 import { api, connectSSE } from '../services/api';
 import { statusForDeviation } from '../utils/thresholds';
+
+// Minimum time (ms) a status must persist before it can change, to prevent
+// rapid flicker when a machine hovers near a threshold boundary.
+const STATUS_MIN_DURATION = 8000;
 
 export function useMachines() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [statuses, setStatuses] = useState<Map<string, MachineStatus>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Track when each machine's current status was last set, to enforce
+  // a minimum duration before allowing a status change.
+  const statusSinceRef = useRef<Map<string, number>>(new Map());
 
   const fetchMachines = useCallback(async () => {
     try {
@@ -16,6 +23,41 @@ export function useMachines() {
     } catch {
       setLoading(false);
     }
+  }, []);
+
+  const severityRank: Record<string, number> = { normal: 0, warning: 1, critical: 2 };
+
+  const applyStatuses = useCallback((incoming: Map<string, MachineStatus>) => {
+    setStatuses((prev) => {
+      const next = new Map(prev);
+      const now = Date.now();
+      for (const [id, newStatus] of incoming) {
+        const existing = prev.get(id);
+        if (!existing) {
+          next.set(id, newStatus);
+          statusSinceRef.current.set(id, now);
+          continue;
+        }
+        if (existing.status === newStatus.status) continue;
+
+        // Escalation (normal→warning→critical) is always immediate.
+        const escalating = severityRank[newStatus.status] > severityRank[existing.status];
+        if (escalating) {
+          next.set(id, newStatus);
+          statusSinceRef.current.set(id, now);
+          continue;
+        }
+
+        // De-escalation: only allow if the current status has persisted
+        // for at least STATUS_MIN_DURATION.
+        const since = statusSinceRef.current.get(id) ?? 0;
+        if (now - since >= STATUS_MIN_DURATION) {
+          next.set(id, newStatus);
+          statusSinceRef.current.set(id, now);
+        }
+      }
+      return next;
+    });
   }, []);
 
   const fetchStatuses = useCallback(async () => {
@@ -30,11 +72,11 @@ export function useMachines() {
           // Skip
         }
       }
-      setStatuses(statusMap);
+      applyStatuses(statusMap);
     } catch {
       // Ignore
     }
-  }, []);
+  }, [applyStatuses]);
 
   useEffect(() => {
     fetchMachines();
@@ -51,38 +93,30 @@ export function useMachines() {
         const s = event.sample;
         const serverStatus = event.status as MachineStatus | undefined;
         if (serverStatus) {
-          setStatuses((prev) => {
-            const nextMap = new Map(prev);
-            nextMap.set(event.machineId, serverStatus);
-            return nextMap;
-          });
+          applyStatuses(new Map([[event.machineId, serverStatus]]));
         } else {
           // Fallback: derive status from the sample if the server didn't send one.
           const devPct = ((s.actual - s.expected) / s.expected) * 100;
-          setStatuses((prev) => {
-            const existing = prev.get(event.machineId);
-            const machine = machines.find((m) => m.id === event.machineId);
-            let status: MachineStatus['status'] = 'normal';
-            if (machine) {
-              status = statusForDeviation(devPct, machine.thresholds);
-            } else if (existing) {
-              status = existing.status;
-            }
-            const next: MachineStatus = {
-              machineId: event.machineId,
-              name: existing?.name || machine?.name || event.machineId,
-              status,
-              devPct: Math.round(devPct * 10) / 10,
-              actual: s.actual,
-              expected: s.expected,
-              vibration: s.vibration,
-              cycleTime: s.cycleTime,
-              timestamp: s.timestamp,
-            };
-            const nextMap = new Map(prev);
-            nextMap.set(event.machineId, next);
-            return nextMap;
-          });
+          const machine = machines.find((m) => m.id === event.machineId);
+          const existing = statuses.get(event.machineId);
+          let status: MachineStatus['status'] = 'normal';
+          if (machine) {
+            status = statusForDeviation(devPct, machine.thresholds);
+          } else if (existing) {
+            status = existing.status;
+          }
+          const derived: MachineStatus = {
+            machineId: event.machineId,
+            name: existing?.name || machine?.name || event.machineId,
+            status,
+            devPct: Math.round(devPct * 10) / 10,
+            actual: s.actual,
+            expected: s.expected,
+            vibration: s.vibration,
+            cycleTime: s.cycleTime,
+            timestamp: s.timestamp,
+          };
+          applyStatuses(new Map([[event.machineId, derived]]));
         }
       }
     });

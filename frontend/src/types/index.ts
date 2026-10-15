@@ -88,6 +88,18 @@ export interface AuditEntry {
   details: string;
 }
 
+export interface PastIncidentSummary {
+  id: string;
+  detectedAt: string;
+  devPct: number;
+  severity: string;
+  status: string;
+  topHypothesis: string | null;
+  actionTaken: string | null;
+  verificationPassed: boolean | null;
+  resolutionComment: string | null;
+}
+
 export interface Alert {
   id: string;
   machineId: string;

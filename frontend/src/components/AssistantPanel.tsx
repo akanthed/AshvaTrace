@@ -9,7 +9,7 @@ interface Msg {
 
 const SUGGESTIONS = [
   'Which machines are in a warning or critical state right now?',
-  'What is the power deviation on CNC-03?',
+  'What is the current power deviation on the worst-performing machine?',
   'What are the open incidents and their top hypotheses?',
 ];
 

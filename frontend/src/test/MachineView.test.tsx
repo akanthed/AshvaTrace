@@ -145,11 +145,11 @@ describe('MachineView', () => {
     });
   });
 
-  it('has a back link to home', async () => {
+  it('has a back button', async () => {
     renderMachineView();
     await waitFor(() => {
-      const backLink = screen.getByText('← Home');
-      expect(backLink).toHaveAttribute('href', '/');
+      const backBtn = screen.getByText('← Back');
+      expect(backBtn).toBeInTheDocument();
     });
   });
 });

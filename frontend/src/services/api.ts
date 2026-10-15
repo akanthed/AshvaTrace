@@ -1,4 +1,4 @@
-import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact, VisionInspection } from '../types';
+import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact, VisionInspection, PastIncidentSummary } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -38,6 +38,9 @@ export const api = {
   verifyOutcome: (id: string, body: any) =>
     fetchJson<Incident>(`/incidents/${id}/verify`, { method: 'POST', body: JSON.stringify(body) }),
   getAuditLog: (id: string) => fetchJson<Incident['auditLog']>(`/incidents/${id}/audit`),
+  getSimilarIncidents: (id: string) => fetchJson<PastIncidentSummary[]>(`/incidents/${id}/similar`),
+  updateIncidentStatus: (id: string, body: { status: string; resolutionComment?: string }) =>
+    fetchJson<Incident>(`/incidents/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   // Analytics
   getShiftSummary: () => fetchJson<ShiftSummary>('/analytics/shift-summary'),

@@ -288,13 +288,43 @@ const INVESTIGATION_TOOLS = [
   },
 ];
 
+export interface PastIncidentRef {
+  id: string;
+  detectedAt: string;
+  devPct: number;
+  severity: string;
+  status: string;
+  topHypothesis: string | null;
+  actionTaken: string | null;
+  verificationPassed: boolean | null;
+  resolutionComment: string | null;
+}
+
 export async function investigateAgentic(
   context: { machineId: string; devPct: number; signals: Record<string, number> },
   sops: SopExcerpt[] = [],
-  toolExecutor: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>
+  toolExecutor: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>,
+  pastIncidents: PastIncidentRef[] = []
 ): Promise<AgenticInvestigationResult> {
   const trace: InvestigationTraceStep[] = [];
   const maxRounds = 3; // observe -> tools -> reason, capped so a chatty model can't loop forever
+
+  // Format past incidents for the prompt so the AI can reference prior
+  // resolutions: "last time this pattern appeared, the fix was X and
+  // verification confirmed it."
+  const pastIncidentsSection = pastIncidents.length > 0
+    ? `\n\nPast incidents on this machine (resolved) — use these to inform your hypotheses. If a similar issue was resolved before, reference it explicitly (e.g. "This matches INC-XXX from Oct 2, which was resolved by replacing the spindle bearing and verified as fixed"):\n${pastIncidents.map((p) => {
+        const date = new Date(p.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const lines = [
+          `  ${p.id} (${date}): deviation ${p.devPct}%, severity ${p.severity}`,
+          p.topHypothesis ? `    Root cause: ${p.topHypothesis}` : null,
+          p.actionTaken ? `    Action taken: ${p.actionTaken}` : null,
+          p.verificationPassed !== null ? `    Verification: ${p.verificationPassed ? 'PASS (fix confirmed)' : 'FAIL (fix did not work)'}` : null,
+          p.resolutionComment ? `    Notes: ${p.resolutionComment}` : null,
+        ].filter(Boolean);
+        return lines.join('\n');
+      }).join('\n')}`
+    : '';
 
   const systemPrompt = `You are an industrial maintenance AI investigating a CNC/manufacturing machine fault.
 
@@ -310,6 +340,7 @@ Then form 3-5 ranked hypotheses grounded in the tool results.
 
 Relevant standard operating procedure (SOP) excerpts for this plant — use these as your primary reference, not general knowledge:
 ${formatSops(sops)}
+${pastIncidentsSection}
 
 For each hypothesis:
 - title: short, specific name for the failure mode

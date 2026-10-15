@@ -74,33 +74,29 @@ interface CriticalContext {
 }
 
 function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey, string, Tile[]]> {
-  const trendsMachine = machineId ?? 'CNC-03';
-  // Investigation/Interventions/Verification/Audit all live on the open incident's page —
-  // fall back to the machine's own tab (which itself links to the incident) when none is open.
-  const incidentOrMachine = (tab: string) =>
-    incidentId ? `/incident/${incidentId}?tab=${tab}` : `/machine/${trendsMachine}?tab=${tab}`;
+  // Only show machine-specific tiles when there's an active critical alert.
+  // Otherwise the home screen shows a generic "go to monitoring" tile.
+  const hasActive = !!machineId;
+  const trendsMachine = machineId ?? '';
 
-  return [
-    [
-      'monitor',
-      'Monitor',
-      [
+  const monitorTiles: Tile[] = hasActive
+    ? [
         {
           title: 'Monitoring',
-          desc: 'A machine’s current power, expected power and deviation',
+          desc: 'A machine's current power, expected power and deviation',
           icon: ICONS.plant,
           go: `/machine/${trendsMachine}?tab=monitoring`,
           flagged: !!incidentId,
         },
         {
           title: 'Dashboard',
-          desc: 'A machine’s own dashboard of live tiles',
+          desc: 'A machine's own dashboard of live tiles',
           icon: ICONS.stack,
           go: `/machine/${trendsMachine}?tab=dashboard`,
         },
         {
           title: 'Threshold',
-          desc: 'The warning and critical limits that decide a machine’s status',
+          desc: 'The warning and critical limits that decide a machine's status',
           icon: ICONS.gauge,
           go: `/machine/${trendsMachine}?tab=threshold`,
         },
@@ -110,9 +106,36 @@ function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey,
           icon: ICONS.chart,
           go: `/machine/${trendsMachine}?tab=trends`,
         },
-      ],
-    ],
-    [
+        {
+          title: 'Plant',
+          desc: 'Manage machines — add, rename, remove',
+          icon: ICONS.plant,
+          go: `/machine/${trendsMachine}?tab=plant`,
+        },
+      ]
+    : [
+        {
+          title: 'Monitoring',
+          desc: 'All machines — current power, deviation and status',
+          icon: ICONS.plant,
+          go: '/monitoring',
+        },
+        {
+          title: 'Plant',
+          desc: 'Manage machines — add, rename, remove',
+          icon: ICONS.plant,
+          go: '/monitoring',
+        },
+      ];
+
+  const groups: Array<[GroupKey, string, Tile[]]> = [
+    ['monitor', 'Monitor', monitorTiles],
+  ];
+
+  // Only show the investigate group when there's an active incident to work on.
+  if (incidentId) {
+    const incidentOrMachine = (tab: string) => `/incident/${incidentId}?tab=${tab}`;
+    groups.push([
       'investigate',
       'Investigate & verify',
       [
@@ -141,8 +164,10 @@ function useGroups({ machineId, incidentId }: CriticalContext): Array<[GroupKey,
           go: incidentOrMachine('audit'),
         },
       ],
-    ],
-  ];
+    ]);
+  }
+
+  return groups;
 }
 
 export default function LaunchView() {
