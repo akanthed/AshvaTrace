@@ -12,16 +12,13 @@ describe('machineService', () => {
     initShiftData();
   });
 
-  it('getMachines returns all 6 machines', () => {
+  it('getMachines returns all 3 machines', () => {
     const machines = getMachines();
-    expect(machines).toHaveLength(6);
+    expect(machines).toHaveLength(3);
     expect(machines.map((m) => m.id)).toEqual([
       'CNC-01',
       'CNC-02',
       'CNC-03',
-      'CNC-04',
-      'GRD-01',
-      'PRS-01',
     ]);
   });
 
@@ -38,6 +35,14 @@ describe('machineService', () => {
     expect(status!.machineId).toBe('CNC-01');
     expect(status!.actual).toBeGreaterThan(0);
     expect(status!.expected).toBeGreaterThan(0);
+  });
+
+  it('CNC-02 shows warning at end of shift', () => {
+    const status = getMachineStatus('CNC-02');
+    expect(status).not.toBeNull();
+    expect(status!.status).toBe('warning');
+    expect(status!.devPct).toBeGreaterThan(5);
+    expect(status!.devPct).toBeLessThan(10);
   });
 
   it('CNC-03 shows critical at end of shift', () => {

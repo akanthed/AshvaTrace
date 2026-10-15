@@ -6,7 +6,7 @@ import { routes } from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initShiftData, loadPersistedMachines, tickLiveSample, getMachineStatus, getMachines } from './services/machineService';
 import { checkThresholds, publishAlert, loadPersistedAlerts } from './services/alertService';
-import { loadPersistedIncidents, investigateIncident, getIncidentById } from './services/incidentService';
+import { loadPersistedIncidents, seedPastIncidents, investigateIncident, getIncidentById } from './services/incidentService';
 import { broadcastEvent } from './routes/sseRoutes';
 import { initBigQuery, seedBigQuery, seedSops } from './services/bigqueryService';
 
@@ -55,6 +55,9 @@ async function start() {
     await loadPersistedMachines();
     await loadPersistedIncidents();
     await loadPersistedAlerts();
+    // Seed synthetic past incidents so the AI has history to reference
+    // ("last time this happened, we did X and it worked").
+    seedPastIncidents();
   }
 
   // Start threshold checker (every 5 seconds)

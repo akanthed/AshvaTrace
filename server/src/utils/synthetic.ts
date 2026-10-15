@@ -25,6 +25,9 @@ export interface MachineInfo {
   type: string;
   thresholds: Thresholds;
   series: Sample[];
+  // Center of the deviation band (percent) this machine should stay in. The
+  // live tick mean-reverts toward it so the machine holds its condition.
+  targetDevPct?: number;
 }
 
 export interface ShiftData {
@@ -55,65 +58,29 @@ const N = 2400; // 2400 samples
 const DT = 12; // 12 seconds per sample
 const SEED = 4207;
 
-// A short, self-resolving event on an otherwise healthy machine: a
-// triangular pulse (ramps up to a peak at the midpoint, then back down to
-// zero) added on top of the normal noise. Modeled on real, physically
-// plausible causes per machine type so each one's trend tells a distinct
-// story instead of all 5 non-incident machines looking like flat noise —
-// but all fully recover, unlike CNC-03's sustained drift below.
-interface TransientEvent {
-  start: number;
-  duration: number;
-  powerDelta: number; // kW added at peak (negative = dip)
-  vibrationDelta: number; // mm/s added at peak
-  cycleTimeDelta: number; // seconds added at peak
-}
-
-function triangularPulse(i: number, event: TransientEvent): number {
-  const { start, duration } = event;
-  if (i < start || i >= start + duration) return 0;
-  const mid = duration / 2;
-  const distFromMid = Math.abs(i - start - mid);
-  return Math.max(0, 1 - distFromMid / mid);
-}
-
-// noiseStd/cyclePeriods/cyclePhase give each machine a visually distinct
-// trend shape (different wobble amplitude and a different number/offset of
-// load cycles across the shift) instead of all 6 looking like the same
-// wiggly line shifted up/down by `base` alone.
+// Three demo machines, each pinned to a fixed condition for the whole shift:
+//   CNC-01 → Normal   (deviation hovers near 0–2%, well under the 5% warning)
+//   CNC-02 → Warning  (deviation hovers ~6–9%, above warning, under critical)
+//   CNC-03 → Action   (deviation hovers ~12–18%, above the 10% critical)
+//
+// `targetDevPct` is the center of the band the machine's power deviation
+// should sit in. The seeded series and the live tick both mean-revert toward
+// it, so the values keep changing (realistic wobble) but the machine never
+// leaves its condition — which is exactly what we want for a stable demo.
 const MACHINE_DEFS = [
   {
-    id: 'CNC-01', name: 'CNC Mill 01', type: 'milling', base: 45, warning: 5, critical: 10, noiseStd: 0.8, cyclePeriods: 1, cyclePhase: 0,
-    // Coolant-flow hiccup: brief extra load while flow self-corrects.
-    event: { start: 500, duration: 20, powerDelta: 2, vibrationDelta: 0.4, cycleTimeDelta: 3 },
+    id: 'CNC-01', name: 'CNC Mill 01', type: 'milling', base: 45, warning: 5, critical: 10,
+    cyclePeriods: 1, cyclePhase: 0, targetDevPct: 1.0,
   },
   {
-    id: 'CNC-02', name: 'CNC Mill 02', type: 'milling', base: 42, warning: 5, critical: 10, noiseStd: 1.4, cyclePeriods: 3, cyclePhase: 1.1,
-    // Cold-start warm-up: higher friction/power right at shift start, settles as the machine warms.
-    event: { start: 0, duration: 150, powerDelta: 2.2, vibrationDelta: 0.3, cycleTimeDelta: 4 },
-  },
-  { id: 'CNC-03', name: 'CNC Mill 03', type: 'milling', base: 48, warning: 5, critical: 10, noiseStd: 0.8, cyclePeriods: 1, cyclePhase: 0 },
-  {
-    id: 'CNC-04', name: 'CNC Lathe 04', type: 'turning', base: 38, warning: 5, critical: 10, noiseStd: 0.5, cyclePeriods: 6, cyclePhase: 2.4,
-    // Lighter material batch: less cutting force needed for a run of parts.
-    event: { start: 1200, duration: 30, powerDelta: -1.8, vibrationDelta: -0.2, cycleTimeDelta: -2 },
+    id: 'CNC-02', name: 'CNC Mill 02', type: 'milling', base: 42, warning: 5, critical: 10,
+    cyclePeriods: 3, cyclePhase: 1.1, targetDevPct: 7.5,
   },
   {
-    id: 'GRD-01', name: 'Grinder 01', type: 'grinding', base: 30, warning: 5, critical: 10, noiseStd: 1.8, cyclePeriods: 2, cyclePhase: 3.6,
-    // Wheel dressing: not cutting (power dips) but the dressing tool raises vibration.
-    event: { start: 1800, duration: 12, powerDelta: -1, vibrationDelta: 1.1, cycleTimeDelta: 1 },
-  },
-  {
-    id: 'PRS-01', name: 'Press 01', type: 'stamping', base: 55, warning: 5, critical: 10, noiseStd: 2.2, cyclePeriods: 4, cyclePhase: 0.6,
-    // Die lubrication pass: slower strokes and lower power during the pass.
-    event: { start: 700, duration: 20, powerDelta: -2, vibrationDelta: -0.1, cycleTimeDelta: 15 },
+    id: 'CNC-03', name: 'CNC Mill 03', type: 'milling', base: 48, warning: 5, critical: 10,
+    cyclePeriods: 1, cyclePhase: 0, targetDevPct: 15.0,
   },
 ];
-
-// CNC-03 has a scripted incident: drift starts at sample 960
-const DRIFT_START = 960;
-const DRIFT_RATE = 0.008; // 0.8% per sample
-const TOOL_CHANGE = 650; // Tool change event at sample 650
 
 interface MachineDef {
   id: string;
@@ -122,17 +89,19 @@ interface MachineDef {
   base: number;
   warning: number;
   critical: number;
-  noiseStd?: number;
   cyclePeriods?: number;
   cyclePhase?: number;
-  event?: TransientEvent;
+  // Center of the deviation band this machine should stay in (percent).
+  targetDevPct?: number;
 }
 
 export function generateMachineSeries(def: MachineDef, rng: () => number = mulberry32(SEED)): Sample[] {
   const series: Sample[] = [];
-  const noiseStd = def.noiseStd ?? 0.8;
   const cyclePeriods = def.cyclePeriods ?? 1;
   const cyclePhase = def.cyclePhase ?? 0;
+  // Where this machine's power deviation should sit (percent). Defaults to 0
+  // (healthy) if not specified.
+  const targetDevPct = def.targetDevPct ?? 0;
 
   for (let i = 0; i < N; i++) {
     const hour = 6 + (i * DT) / 3600;
@@ -142,43 +111,26 @@ export function generateMachineSeries(def: MachineDef, rng: () => number = mulbe
     // each machine a different wobble shape so trend charts look distinct.
     const expected = def.base + Math.sin((i / N) * Math.PI * 2 * cyclePeriods + cyclePhase) * 2;
 
-    // Actual power: expected + noise
-    let actual = gauss(rng, expected, noiseStd);
+    // Actual power: expected plus a sustained offset that puts the machine in
+    // its target condition, plus a small wobble so the line still moves. The
+    // resulting deviation is clamped to stay within the machine's condition
+    // band, so the machine never leaves its state — stable for the demo.
+    const wobble = gauss(rng, 0, def.base * 0.012); // ~±0.3% wobble
+    let devPct = targetDevPct + (wobble / expected) * 100;
+    // Clamp the deviation to stay safely inside the band.
+    const lowerBound = targetDevPct < 5 ? 0 : targetDevPct < 10 ? 5.5 : 11;
+    const upperBound = targetDevPct < 5 ? 4 : targetDevPct < 10 ? 9.5 : 20;
+    devPct = Math.max(lowerBound, Math.min(upperBound, devPct));
+    const actual = expected * (1 + devPct / 100);
 
-    // CNC-03: tool change event at 650 (brief spike)
-    if (def.id === 'CNC-03' && i >= TOOL_CHANGE && i < TOOL_CHANGE + 20) {
-      actual += 3 + rng() * 2;
-    }
+    // Vibration (mm/s): healthy machines sit low; the warning/critical
+    // machines run a bit hotter to match their condition.
+    const vibBase = targetDevPct >= 10 ? 4.0 : targetDevPct >= 5 ? 3.2 : 2.0;
+    const vibration = Math.max(0, gauss(rng, vibBase, 0.3));
 
-    // CNC-03: drift starts at 960
-    if (def.id === 'CNC-03' && i >= DRIFT_START) {
-      const driftSamples = i - DRIFT_START;
-      actual += driftSamples * DRIFT_RATE * def.base;
-    }
-
-    // Vibration (mm/s)
-    let vibration = gauss(rng, 2.0, 0.3);
-    if (def.id === 'CNC-03' && i >= DRIFT_START) {
-      vibration += (i - DRIFT_START) * 0.003;
-    }
-
-    // Cycle time (seconds)
-    let cycleTime = gauss(rng, 90, 5);
-    if (def.id === 'CNC-03' && i >= DRIFT_START) {
-      cycleTime += (i - DRIFT_START) * 0.02;
-    }
-
-    // Every other machine gets one short, fully-recovering event instead of
-    // CNC-03's sustained unresolved drift — a real but ordinary operating
-    // moment (warm-up, lubrication pass, material change), not a fault.
-    if (def.event) {
-      const w = triangularPulse(i, def.event);
-      if (w > 0) {
-        actual += def.event.powerDelta * w;
-        vibration += def.event.vibrationDelta * w;
-        cycleTime += def.event.cycleTimeDelta * w;
-      }
-    }
+    // Cycle time (seconds): slightly slower as the machine works harder.
+    const ctBase = 90 + (targetDevPct >= 10 ? 25 : targetDevPct >= 5 ? 12 : 0);
+    const cycleTime = Math.max(0, gauss(rng, ctBase, 5));
 
     series.push({
       timestamp,
@@ -209,6 +161,7 @@ export function generateShiftData(): { data: ShiftData; machines: MachineInfo[] 
       type: def.type,
       thresholds: defaultThresholds(def.warning, def.critical),
       series: generateMachineSeries(def, rng),
+      targetDevPct: def.targetDevPct,
     });
   }
 

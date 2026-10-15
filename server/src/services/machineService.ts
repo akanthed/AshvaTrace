@@ -142,20 +142,11 @@ export function getMachineStatus(id: string) {
   };
 }
 
-// Live-demo state: tracks whether each machine is currently in a "spike"
-// episode (a temporary excursion into warning/critical territory) so the
-// alert + incident pipeline fires naturally as the live data moves. Keyed
-// per-machine so multiple machines ticking live don't share one spike timer.
-const liveSpikeRemaining = new Map<string, number>();
-
-// Append a new "live" sample to a machine using a bounded random walk around
-// its current values, with occasional spikes that push the deviation into
-// warning/critical territory. Called per-machine so every machine's trend
-// chart moves over time instead of only one looking live while the rest
-// stay frozen at their seeded values.
-//
-// The walk is mean-reverting so it stays plausible between spikes. A spike
-// lasts a few ticks, then the machine recovers back toward normal.
+// Append a new "live" sample to a machine. Each machine is pinned to a target
+// deviation band (see MachineInfo.targetDevPct) so it holds its condition for
+// the whole demo: the walk mean-reverts toward the target offset and adds a
+// small random kick, so the values keep changing but the machine never drifts
+// out of its Normal / Warning / Action state.
 export function tickLiveSample(id: string): { machineId: string; sample: Sample; spiked: boolean } | null {
   if (!shiftData) initShiftData();
   if (!shiftData) return null;
@@ -163,37 +154,22 @@ export function tickLiveSample(id: string): { machineId: string; sample: Sample;
   if (!machine || machine.series.length === 0) return null;
 
   const latest = machine.series[machine.series.length - 1];
+  const targetDevPct = machine.targetDevPct ?? 0;
 
-  // Decide spike state. If not currently spiking, start one occasionally.
-  // Odds are per-machine but all machines tick together now, so this is
-  // divided down from the original 1-in-12 (tuned for a single machine) to
-  // keep the same overall "a fault every ~30s or so" demo pacing now that
-  // every machine rolls the dice each tick.
-  let remaining = liveSpikeRemaining.get(id) ?? 0;
-  let spiked = false;
-  if (remaining > 0) {
-    remaining -= 1;
-    spiked = true;
-  } else if (Math.random() < 1 / 72) {
-    remaining = 4 + Math.floor(Math.random() * 4); // 4-7 ticks
-    spiked = true;
-  }
-  liveSpikeRemaining.set(id, remaining);
+  // The actual power we want to sit at: expected plus the target offset.
+  const targetActual = latest.expected * (1 + targetDevPct / 100);
 
-  // Mean-reverting random walk: pull back toward expected, add a random kick.
-  const pull = (latest.expected - latest.actual) * 0.15;
-  const kick = (Math.random() - 0.5) * 2.4; // ±1.2 around base
-  let actual = Math.max(0, latest.actual + pull + kick);
+  // Mean-revert toward the target, add a small random kick so the line moves.
+  const pull = (targetActual - latest.actual) * 0.3;
+  const kick = (Math.random() - 0.5) * 1.6; // ±0.8 kW wobble
+  const actual = Math.max(0, latest.actual + pull + kick);
 
-  // During a spike, push actual well above expected so the deviation crosses
-  // the warning/critical thresholds and the alert pipeline fires.
-  if (spiked) {
-    const overshoot = latest.expected * (0.12 + Math.random() * 0.15); // +12%..+27%
-    actual = latest.expected + overshoot;
-  }
-
-  const vibration = Math.max(0, latest.vibration + (Math.random() - 0.5) * 0.5 + (spiked ? 1.5 : 0));
-  const cycleTime = Math.max(0, latest.cycleTime + (Math.random() - 0.5) * 4 + (spiked ? 8 : 0));
+  // Vibration and cycle time also mean-revert toward a level that matches the
+  // machine's condition (hotter when it's in warning/action).
+  const vibTarget = targetDevPct >= 10 ? 4.0 : targetDevPct >= 5 ? 3.2 : 2.0;
+  const ctTarget = 90 + (targetDevPct >= 10 ? 25 : targetDevPct >= 5 ? 12 : 0);
+  const vibration = Math.max(0, latest.vibration + (vibTarget - latest.vibration) * 0.3 + (Math.random() - 0.5) * 0.4);
+  const cycleTime = Math.max(0, latest.cycleTime + (ctTarget - latest.cycleTime) * 0.3 + (Math.random() - 0.5) * 3);
 
   const sample: Sample = {
     timestamp: new Date().toISOString(),
@@ -206,6 +182,11 @@ export function tickLiveSample(id: string): { machineId: string; sample: Sample;
   machine.series.push(sample);
   // Keep the series bounded so memory doesn't grow unbounded during a long demo.
   if (machine.series.length > 5000) machine.series.shift();
+
+  // `spiked` is kept for API compatibility; it's now just "is this machine in
+  // a non-normal condition" so the auto-investigate trigger still works.
+  const devPct = ((actual - latest.expected) / latest.expected) * 100;
+  const spiked = devPct >= machine.thresholds.upperWarning || devPct <= machine.thresholds.lowerWarning;
 
   return { machineId: id, sample, spiked };
 }

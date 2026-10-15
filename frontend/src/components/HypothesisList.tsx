@@ -8,11 +8,11 @@ interface Props {
 
 export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
   if (hypotheses.length === 0) {
-    return <div className="empty">No hypotheses yet. Run investigation first.</div>;
+    return <div className="empty">No hypotheses yet. Run the AI investigation first.</div>;
   }
 
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
+    <div style={{ display: 'grid', gap: 12 }}>
       {hypotheses.map((h, i) => (
         <article
           key={h.id}
@@ -24,14 +24,14 @@ export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
           }}
         >
           <h4>
-            <span className="rank">H{i + 1}</span>
+            <span className="rank">#{i + 1}</span>
             {h.title}
-            <span className="pill info">Confidence: {h.confidence}%</span>
-            {h.sopRef && <span className="pill">{h.sopRef}</span>}
+            <span className="pill info">{h.confidence}% likely</span>
+            {h.sopRef && <span className="pill">Follows {h.sopRef}</span>}
           </h4>
           <div className="fa">
             <div>
-              <span>For</span>
+              <span style={{ color: 'var(--ok)' }}>Why this fits</span>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {h.evidenceFor.map((e, idx) => (
                   <li key={idx}>{e}</li>
@@ -39,7 +39,7 @@ export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
               </ul>
             </div>
             <div>
-              <span>Against</span>
+              <span style={{ color: 'var(--warn)' }}>What argues against it</span>
               <ul style={{ margin: 0, paddingLeft: 18 }}>
                 {h.evidenceAgainst.map((e, idx) => (
                   <li key={idx}>{e}</li>

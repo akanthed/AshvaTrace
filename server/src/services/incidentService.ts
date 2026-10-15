@@ -100,12 +100,242 @@ export async function loadPersistedIncidents(): Promise<void> {
   }
 }
 
+/**
+ * Seed synthetic past (resolved) incidents so the AI has history to reference
+ * during investigation. This gives the demo a realistic "last time this
+ * happened, we did X and it worked" story. Only seeds if no incidents exist
+ * yet for the machine, so it won't overwrite real data.
+ */
+export function seedPastIncidents(): void {
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+
+  const seeds: Array<{
+    id: string;
+    machineId: string;
+    machineName: string;
+    daysAgo: number;
+    devPct: number;
+    severity: 'warning' | 'critical';
+    status: 'verified' | 'closed';
+    hypotheses: Hypothesis[];
+    simulation?: SimulationResult;
+    verification?: VerificationResult;
+    resolutionComment?: string;
+  }> = [
+    {
+      id: 'INC-PAST-001',
+      machineId: 'CNC-03',
+      machineName: 'CNC Mill 03',
+      daysAgo: 12,
+      devPct: 14.2,
+      severity: 'critical',
+      status: 'verified',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Spindle bearing wear causing increased friction',
+          confidence: 82,
+          evidenceFor: [
+            'Power was running 14% above baseline for 3 hours before the alert',
+            'Vibration was elevated at 5.8 mm/s, well above the 3 mm/s healthy limit',
+            'Cycle time was 8% slower than normal, consistent with mechanical drag',
+          ],
+          evidenceAgainst: [
+            'No tool change event in the last 48 hours, so it was not a fresh tool issue',
+          ],
+          sopRef: 'SOP-102',
+        },
+        {
+          id: 'HYP-2',
+          title: 'Coolant flow restriction reducing cutting efficiency',
+          confidence: 55,
+          evidenceFor: [
+            'Power deviation started gradually over 2 hours, matching a slow coolant clog',
+            'Vibration was moderately elevated but not as high as a bearing fault',
+          ],
+          evidenceAgainst: [
+            'Cycle time was only slightly affected, which is less typical for coolant issues',
+          ],
+          sopRef: 'SOP-101',
+        },
+      ],
+      simulation: {
+        action: 'Replace spindle bearing and flush coolant lines',
+        predictedOutcome: 'Power deviation should return to under 3% within 30 minutes of the bearing replacement. Vibration should drop below 3 mm/s.',
+        confidence: 88,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Power deviation dropped to 1.8% within 20 minutes. Vibration settled at 2.4 mm/s. Cycle time returned to baseline.',
+        metrics: { powerDevPct: 1.8, vibration: 2.4, cycleTime: 92 },
+      },
+      resolutionComment: 'Bearing was visibly worn on inspection. Replaced and flushed coolant. Machine back to normal within 20 minutes.',
+    },
+    {
+      id: 'INC-PAST-002',
+      machineId: 'CNC-03',
+      machineName: 'CNC Mill 03',
+      daysAgo: 5,
+      devPct: 15.8,
+      severity: 'critical',
+      status: 'verified',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Tool edge chipping increasing cutting resistance',
+          confidence: 78,
+          evidenceFor: [
+            'Power spiked 16% above baseline right after a long continuous run',
+            'Vibration was elevated at 5.2 mm/s, consistent with an uneven cutting edge',
+            'Cycle time was 6% slower, matching the extra force needed to cut with a chipped edge',
+          ],
+          evidenceAgainst: [
+            'No sudden spike — the deviation built up gradually, which is more typical of wear than a single chip event',
+          ],
+          sopRef: 'SOP-102',
+        },
+        {
+          id: 'HYP-2',
+          title: 'Workpiece material variation (harder batch)',
+          confidence: 45,
+          evidenceFor: [
+            'A new material batch was loaded the same morning',
+            'Power deviation was sustained rather than intermittent',
+          ],
+          evidenceAgainst: [
+            'Vibration was too high for a pure material hardness issue — usually that shows as power only',
+          ],
+          sopRef: null,
+        },
+      ],
+      simulation: {
+        action: 'Replace cutting tool and verify edge geometry',
+        predictedOutcome: 'Power should return to baseline within 15 minutes of tool replacement. Vibration should drop below 3 mm/s.',
+        confidence: 85,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'New tool installed. Power deviation dropped to 2.1% within 10 minutes. Vibration at 2.6 mm/s.',
+        metrics: { powerDevPct: 2.1, vibration: 2.6, cycleTime: 91 },
+      },
+      resolutionComment: 'Tool edge was chipped on inspection. Replaced with a fresh tool. Machine back to normal.',
+    },
+    {
+      id: 'INC-PAST-003',
+      machineId: 'CNC-02',
+      machineName: 'CNC Mill 02',
+      daysAgo: 8,
+      devPct: 7.8,
+      severity: 'warning',
+      status: 'closed',
+      hypotheses: [
+        {
+          id: 'HYP-1',
+          title: 'Gradual process drift from tool wear',
+          confidence: 72,
+          evidenceFor: [
+            'Power was 8% above baseline and slowly climbing over 4 hours',
+            'Vibration was mildly elevated at 3.8 mm/s',
+            'Pattern matched the slow drift seen in previous tool-wear incidents',
+          ],
+          evidenceAgainst: [
+            'Cycle time was normal, which is unusual for significant tool wear',
+          ],
+          sopRef: 'SOP-101',
+        },
+      ],
+      simulation: {
+        action: 'Schedule tool inspection at end of shift',
+        predictedOutcome: 'If tool wear is the cause, the deviation should stabilize or continue climbing. Inspection will confirm.',
+        confidence: 70,
+      },
+      verification: {
+        passed: true,
+        actualOutcome: 'Tool inspection confirmed moderate wear. Tool replaced at end of shift. Power returned to 1.2% deviation.',
+        metrics: { powerDevPct: 1.2, vibration: 2.8, cycleTime: 90 },
+      },
+      resolutionComment: 'Tool was at 70% wear. Replaced and machine returned to normal.',
+    },
+  ];
+
+  for (const seed of seeds) {
+    if (incidents.has(seed.id)) continue;
+    const detectedAt = new Date(now - seed.daysAgo * day).toISOString();
+    const incident: Incident = {
+      id: seed.id,
+      machineId: seed.machineId,
+      machineName: seed.machineName,
+      status: seed.status,
+      detectedAt,
+      severity: seed.severity,
+      devPct: seed.devPct,
+      hypotheses: seed.hypotheses,
+      simulation: seed.simulation,
+      verification: seed.verification,
+      auditLog: [
+        {
+          timestamp: detectedAt,
+          actor: 'system',
+          action: 'incident_created',
+          details: `${seed.machineName} exceeded ${seed.severity} threshold at ${seed.devPct}% deviation`,
+        },
+        {
+          timestamp: new Date(now - seed.daysAgo * day + 3600000).toISOString(),
+          actor: 'ai',
+          action: 'investigation_completed',
+          details: `AI generated ${seed.hypotheses.length} hypotheses. Top: ${seed.hypotheses[0]?.title}`,
+        },
+        {
+          timestamp: new Date(now - seed.daysAgo * day + 7200000).toISOString(),
+          actor: 'engineer',
+          action: 'action_taken',
+          details: seed.simulation?.action || 'Action taken',
+        },
+        {
+          timestamp: new Date(now - seed.daysAgo * day + 10800000).toISOString(),
+          actor: 'system',
+          action: 'verification_completed',
+          details: seed.verification
+            ? `Verification ${seed.verification.passed ? 'PASSED' : 'FAILED'}: ${seed.verification.actualOutcome}`
+            : 'Verification completed',
+        },
+        ...(seed.resolutionComment
+          ? [
+              {
+                timestamp: new Date(now - seed.daysAgo * day + 10800000).toISOString(),
+                actor: 'engineer',
+                action: 'incident_resolved',
+                details: seed.resolutionComment,
+              },
+            ]
+          : []),
+      ],
+    };
+    incidents.set(seed.id, incident);
+  }
+
+  console.log(`[Init] Seeded ${seeds.length} past incidents for demo history`);
+}
+
 export function getIncidents(): Incident[] {
   return Array.from(incidents.values());
 }
 
 export function getIncidentById(id: string): Incident | null {
   return incidents.get(id) || null;
+}
+
+/**
+ * Get all incidents for a machine (open + past), most recent first.
+ */
+export function getIncidentsForMachine(machineId: string): Incident[] {
+  const list: Incident[] = [];
+  for (const inc of incidents.values()) {
+    if (inc.machineId === machineId) list.push(inc);
+  }
+  list.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
+  return list;
 }
 
 // An incident is still "live" (not yet resolved) in any of these statuses.

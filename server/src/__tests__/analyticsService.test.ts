@@ -13,11 +13,11 @@ describe('analyticsService', () => {
   });
 
   describe('getShiftSummary', () => {
-    it('returns a summary for all 6 machines', () => {
+    it('returns a summary for all 3 machines', () => {
       const summary = getShiftSummary();
       expect(summary.shiftStart).toBe('06:00');
       expect(summary.shiftEnd).toBe('14:00');
-      expect(summary.machines).toHaveLength(6);
+      expect(summary.machines).toHaveLength(3);
     });
 
     it('flags CNC-03 as critical and healthy machines as non-critical', () => {
@@ -83,7 +83,7 @@ describe('analyticsService', () => {
   describe('getEnergyReport', () => {
     it('returns energy data for all machines', () => {
       const report = getEnergyReport();
-      expect(report.machines).toHaveLength(6);
+      expect(report.machines).toHaveLength(3);
       for (const m of report.machines) {
         expect(m.totalActualKwh).toBeGreaterThan(0);
         expect(m.totalExpectedKwh).toBeGreaterThan(0);
@@ -109,7 +109,7 @@ describe('analyticsService', () => {
   describe('getMachineComparison', () => {
     it('returns comparison stats for all machines', () => {
       const comparison = getMachineComparison();
-      expect(comparison).toHaveLength(6);
+      expect(comparison).toHaveLength(3);
       for (const m of comparison) {
         expect(m.avgActual).toBeGreaterThan(0);
         expect(m.avgExpected).toBeGreaterThan(0);
@@ -117,11 +117,15 @@ describe('analyticsService', () => {
       }
     });
 
-    it('CNC-03 has a higher std dev than a healthy machine', () => {
+    it('avgDevPct reflects each machine\'s condition band', () => {
       const comparison = getMachineComparison();
-      const cnc03 = comparison.find((m: any) => m.machineId === 'CNC-03')!;
       const cnc01 = comparison.find((m: any) => m.machineId === 'CNC-01')!;
-      expect(cnc03.stdDev).toBeGreaterThan(cnc01.stdDev);
+      const cnc02 = comparison.find((m: any) => m.machineId === 'CNC-02')!;
+      const cnc03 = comparison.find((m: any) => m.machineId === 'CNC-03')!;
+      // CNC-01 is normal (low deviation), CNC-02 is warning (mid), CNC-03 is
+      // action (high). The ordering should hold.
+      expect(cnc01.avgDevPct).toBeLessThan(cnc02.avgDevPct);
+      expect(cnc02.avgDevPct).toBeLessThan(cnc03.avgDevPct);
     });
   });
 });

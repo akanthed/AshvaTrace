@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   getIncidents,
   getIncident,
+  getIncidentsByMachine,
   investigateIncident,
   simulateAction,
   verifyOutcome,
@@ -13,6 +14,7 @@ import {
 export const incidentRoutes = Router();
 
 incidentRoutes.get('/', getIncidents);
+incidentRoutes.get('/machine', getIncidentsByMachine);
 incidentRoutes.get('/:id', getIncident);
 incidentRoutes.post('/:id/investigate', investigateIncident);
 incidentRoutes.post('/:id/simulate', simulateAction);

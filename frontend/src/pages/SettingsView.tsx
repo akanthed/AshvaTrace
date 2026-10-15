@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SystemStatus } from '../types';
 import { api } from '../services/api';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 function StatusPill({ ok }: { ok: boolean }) {
   return <span className={`pill ${ok ? 'ok' : 'warn'}`}>{ok ? 'Connected' : 'Not connected'}</span>;
@@ -10,13 +11,17 @@ function StatusPill({ ok }: { ok: boolean }) {
 export function SettingsView() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     api
       .getSystemStatus()
       .then(setStatus)
-      .catch(() => setError(true));
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) return <LoadingSpinner label="Loading settings…" />;
 
   return (
     <div className="view">

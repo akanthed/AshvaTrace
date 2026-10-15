@@ -5,6 +5,7 @@ import { api, connectSSE } from '../services/api';
 export function useAlerts() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const fetchAlerts = useCallback(async () => {
     try {
@@ -12,6 +13,8 @@ export function useAlerts() {
       setAlerts(data);
     } catch {
       // API not available yet
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -42,5 +45,5 @@ export function useAlerts() {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
-  return { alerts, connected, fetchAlerts, dismissAlert };
+  return { alerts, connected, loading, fetchAlerts, dismissAlert };
 }

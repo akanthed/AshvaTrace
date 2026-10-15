@@ -40,8 +40,8 @@ describe('HypothesisList', () => {
 
   it('displays confidence percentages', () => {
     render(<HypothesisList hypotheses={mockHypotheses} />);
-    expect(screen.getByText('Confidence: 85%')).toBeInTheDocument();
-    expect(screen.getByText('Confidence: 65%')).toBeInTheDocument();
+    expect(screen.getByText('85% likely')).toBeInTheDocument();
+    expect(screen.getByText('65% likely')).toBeInTheDocument();
   });
 
   it('displays evidence for items', () => {
@@ -56,14 +56,14 @@ describe('HypothesisList', () => {
     expect(screen.getByText('Bearing replaced 30 days ago')).toBeInTheDocument();
   });
 
-  it('shows For and Against labels', () => {
+  it('shows evidence labels', () => {
     render(<HypothesisList hypotheses={mockHypotheses} />);
-    expect(screen.getAllByText('For').length).toBe(2);
-    expect(screen.getAllByText('Against').length).toBe(2);
+    expect(screen.getAllByText('Why this fits').length).toBe(2);
+    expect(screen.getAllByText('What argues against it').length).toBe(2);
   });
 
   it('renders empty state when no hypotheses', () => {
     render(<HypothesisList hypotheses={[]} />);
-    expect(screen.getByText('No hypotheses yet. Run investigation first.')).toBeInTheDocument();
+    expect(screen.getByText('No hypotheses yet. Run the AI investigation first.')).toBeInTheDocument();
   });
 });

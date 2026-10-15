@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import type { Incident, PastIncidentSummary } from '../types';
+import type { Incident } from '../types';
 import { api } from '../services/api';
 import { HypothesisList } from '../components/HypothesisList';
 import { AuditLog } from '../components/AuditLog';
@@ -42,7 +42,7 @@ export function IncidentView() {
   const [resolutionComment, setResolutionComment] = useState('');
   const [statusError, setStatusError] = useState<string | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [pastIncidents, setPastIncidents] = useState<PastIncidentSummary[]>([]);
+  const [allIncidents, setAllIncidents] = useState<Incident[]>([]);
   const initialTab = searchParams.get('tab');
   const [tab, setTabState] = useState<TabKey>(isTabKey(initialTab) ? initialTab : 'investigate');
   const setTab = (next: TabKey) => {
@@ -68,13 +68,15 @@ export function IncidentView() {
     if (!id) return;
     api
       .getIncident(id)
-      .then(setIncident)
+      .then((inc) => {
+        setIncident(inc);
+        // Fetch all incidents for this machine so the user can see history
+        if (inc) {
+          api.getIncidentsByMachine(inc.machineId).then(setAllIncidents).catch(() => {});
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-    api
-      .getSimilarIncidents(id)
-      .then(setPastIncidents)
-      .catch(() => {});
   }, [id]);
 
   if (loading) return <LoadingSpinner label="Loading incident…" />;
@@ -229,42 +231,70 @@ export function IncidentView() {
         <div className="body" style={{ display: 'grid', gap: 16 }}>
           {tab === 'investigate' && (
             <>
-              {pastIncidents.length > 0 && (
-                <div style={{ marginBottom: 16, display: 'grid', gap: 10 }}>
+              {/* All incidents on this machine — open + past, so the user sees history */}
+              {allIncidents.length > 0 && (
+                <div style={{ marginBottom: 16, display: 'grid', gap: 8 }}>
                   <h4 style={{ margin: 0, fontSize: 13, color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                    Past incidents on this machine
+                    Incidents on {incident.machineName}
                   </h4>
-                  {pastIncidents.map((p) => (
-                    <article key={p.id} className="hyp">
-                      <h4>
-                        <span className="rank">{p.id}</span>
-                        {p.topHypothesis || 'Unknown cause'}
-                        <span className={`pill ${p.verificationPassed ? 'ok' : p.verificationPassed === false ? 'crit' : 'info'}`}>
-                          {p.verificationPassed ? 'Verified' : p.verificationPassed === false ? 'Fix failed' : 'Closed'}
-                        </span>
-                        <span className="pill info">{p.devPct}% dev</span>
-                      </h4>
-                      <div style={{ fontSize: 13, display: 'grid', gap: 4 }}>
-                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                          {new Date(p.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </span>
-                        {p.actionTaken && (
-                          <span><span style={{ color: 'var(--muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fix: </span>{p.actionTaken}</span>
+                  {allIncidents.map((inc) => {
+                    const isOpen = inc.status === 'open' || inc.status === 'investigating' || inc.status === 'action_taken';
+                    const isCurrent = inc.id === incident.id;
+                    return (
+                      <article
+                        key={inc.id}
+                        className="hyp"
+                        style={{
+                          opacity: isCurrent ? 1 : 0.75,
+                          borderLeft: isCurrent ? '3px solid var(--accent)' : '3px solid transparent',
+                        }}
+                      >
+                        <h4 style={{ fontSize: 13 }}>
+                          <span className="rank">{inc.id}</span>
+                          <span className={`pill ${isOpen ? 'crit' : 'ok'}`} style={{ fontSize: 11 }}>
+                            {isOpen ? 'Open' : 'Resolved'}
+                          </span>
+                          <span className="pill info" style={{ fontSize: 11 }}>{inc.devPct}% dev</span>
+                          <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>
+                            {new Date(inc.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </h4>
+                        {/* For resolved incidents, show what was done and if it worked */}
+                        {!isOpen && (
+                          <div style={{ fontSize: 12, display: 'grid', gap: 3, marginTop: 4 }}>
+                            {inc.hypotheses.length > 0 && (
+                              <span>
+                                <span style={{ color: 'var(--muted)' }}>Cause: </span>
+                                {inc.hypotheses[0].title}
+                              </span>
+                            )}
+                            {inc.simulation?.action && (
+                              <span>
+                                <span style={{ color: 'var(--muted)' }}>Fix: </span>
+                                {inc.simulation.action}
+                              </span>
+                            )}
+                            {inc.verification && (
+                              <span style={{ color: inc.verification.passed ? 'var(--ok)' : 'var(--crit)' }}>
+                                {inc.verification.passed ? '✓ Verified — fix worked' : '✗ Fix did not work'}
+                              </span>
+                            )}
+                          </div>
                         )}
-                        {p.resolutionComment && (
-                          <span style={{ color: 'var(--muted)' }}>{p.resolutionComment}</span>
-                        )}
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
 
               {incident.hypotheses.length === 0 && (
                 <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
-                  <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start' }}>
-                    {investigating ? 'Asking AI for likely causes…' : investigateError ? 'Retry investigation' : 'Find likely causes'}
+                  <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start', padding: '10px 20px', fontSize: 14 }}>
+                    {investigating ? 'AI is investigating…' : investigateError ? 'Retry AI investigation' : '🔍 Run AI Investigation'}
                   </button>
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>
+                    The AI will analyze this incident's data and check past incidents on this machine to suggest likely causes.
+                  </span>
                   {investigateError && (
                     <div className="empty" style={{ borderColor: 'var(--crit)' }}>
                       <b style={{ color: 'var(--crit)' }}>AI investigation failed</b>
@@ -276,7 +306,7 @@ export function IncidentView() {
 
               {incident.hypotheses.length > 0 && (
                 <div>
-                  <h4 style={{ margin: '0 0 8px' }}>Likely causes, ranked by AI</h4>
+                  <h4 style={{ margin: '0 0 8px' }}>What the AI thinks is wrong</h4>
                   {incident.investigationTrace && incident.investigationTrace.length > 0 && (
                     <InvestigationTrace trace={incident.investigationTrace} />
                   )}

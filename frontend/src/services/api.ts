@@ -39,6 +39,7 @@ export const api = {
     fetchJson<Incident>(`/incidents/${id}/verify`, { method: 'POST', body: JSON.stringify(body) }),
   getAuditLog: (id: string) => fetchJson<Incident['auditLog']>(`/incidents/${id}/audit`),
   getSimilarIncidents: (id: string) => fetchJson<PastIncidentSummary[]>(`/incidents/${id}/similar`),
+  getIncidentsByMachine: (machineId: string) => fetchJson<Incident[]>(`/incidents/machine?machineId=${machineId}`),
   updateIncidentStatus: (id: string, body: { status: string; resolutionComment?: string }) =>
     fetchJson<Incident>(`/incidents/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) }),
 

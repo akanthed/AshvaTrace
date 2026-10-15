@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import {
   getIncidents as fetchIncidents,
   getIncidentById,
+  getIncidentsForMachine,
   investigateIncident as runInvestigation,
   simulateAction as runSimulation,
   verifyOutcome as runVerification,
@@ -78,4 +79,14 @@ export async function getSimilarIncidents(req: Request, res: Response) {
   }
   const similar = findSimilarIncidents(incident.machineId, incident.devPct, incident.id);
   res.json(similar);
+}
+
+export async function getIncidentsByMachine(req: Request, res: Response) {
+  const machineId = req.query.machineId as string;
+  if (!machineId) {
+    res.status(400).json({ error: 'machineId query parameter is required' });
+    return;
+  }
+  const list = getIncidentsForMachine(machineId);
+  res.json(list);
 }

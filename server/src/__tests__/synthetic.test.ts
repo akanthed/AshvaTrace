@@ -3,16 +3,13 @@ import { generateShiftData } from '../utils/synthetic';
 
 const N = 2400;
 const DT = 12;
-const DRIFT_START = 960;
-const DRIFT_RATE = 0.008;
-const CNC03_BASE = 48;
 
 describe('synthetic data generator', () => {
   it('returns 2400 samples per machine', () => {
     const { data } = generateShiftData();
     expect(data.N).toBe(N);
     expect(data.DT).toBe(DT);
-    expect(data.machines).toHaveLength(6);
+    expect(data.machines).toHaveLength(3);
     for (const m of data.machines) {
       expect(m.series).toHaveLength(N);
     }
@@ -30,9 +27,6 @@ describe('synthetic data generator', () => {
       'CNC-01': 45,
       'CNC-02': 42,
       'CNC-03': 48,
-      'CNC-04': 38,
-      'GRD-01': 30,
-      'PRS-01': 55,
     };
     for (const m of data.machines) {
       expect(bases[m.id]).toBeDefined();
@@ -44,29 +38,39 @@ describe('synthetic data generator', () => {
     }
   });
 
-  it('CNC-03 has a drift starting at sample 960', () => {
+  it('CNC-01 stays in the normal band (deviation well under warning)', () => {
+    const { data } = generateShiftData();
+    const cnc01 = data.machines.find((m) => m.id === 'CNC-01')!;
+    const devs = cnc01.series.map((s) => ((s.actual - s.expected) / s.expected) * 100);
+    // Target is ~1%, so the deviation should hover low and never reach the
+    // 5% warning threshold.
+    const mean = devs.reduce((a, b) => a + b, 0) / devs.length;
+    expect(Math.abs(mean)).toBeLessThan(3);
+    expect(Math.max(...devs)).toBeLessThan(5);
+  });
+
+  it('CNC-02 stays in the warning band (above warning, under critical)', () => {
+    const { data } = generateShiftData();
+    const cnc02 = data.machines.find((m) => m.id === 'CNC-02')!;
+    const devs = cnc02.series.map((s) => ((s.actual - s.expected) / s.expected) * 100);
+    const mean = devs.reduce((a, b) => a + b, 0) / devs.length;
+    // Target is ~7.5%, so it should sit above the 5% warning and below the
+    // 10% critical threshold for the whole shift.
+    expect(mean).toBeGreaterThan(5);
+    expect(mean).toBeLessThan(10);
+    expect(Math.min(...devs)).toBeGreaterThan(5);
+    expect(Math.max(...devs)).toBeLessThan(10);
+  });
+
+  it('CNC-03 stays in the action band (above critical)', () => {
     const { data } = generateShiftData();
     const cnc03 = data.machines.find((m) => m.id === 'CNC-03')!;
-
-    // Before drift: deviation should be small (noise only, std ~0.8)
-    const preDriftDevs = cnc03.series
-      .slice(0, DRIFT_START)
-      .map((s) => s.actual - s.expected);
-    const preDriftMean =
-      preDriftDevs.reduce((a, b) => a + b, 0) / preDriftDevs.length;
-    expect(Math.abs(preDriftMean)).toBeLessThan(0.5);
-
-    // After drift: deviation grows linearly
-    const last = cnc03.series[N - 1];
-    const expectedDrift = (N - 1 - DRIFT_START) * DRIFT_RATE * CNC03_BASE;
-    expect(last.actual - last.expected).toBeGreaterThan(expectedDrift * 0.8);
-
-    // Deviation at drift start is still small, at mid-drift it's clearly elevated
-    const atStart = cnc03.series[DRIFT_START];
-    const atMid = cnc03.series[DRIFT_START + 400];
-    expect(atMid.actual - atMid.expected).toBeGreaterThan(
-      atStart.actual - atStart.expected
-    );
+    const devs = cnc03.series.map((s) => ((s.actual - s.expected) / s.expected) * 100);
+    const mean = devs.reduce((a, b) => a + b, 0) / devs.length;
+    // Target is ~15%, so it should sit above the 10% critical threshold for
+    // the whole shift.
+    expect(mean).toBeGreaterThan(10);
+    expect(Math.min(...devs)).toBeGreaterThan(10);
   });
 
   it('computes deviation correctly (actual - expected)', () => {
@@ -84,18 +88,19 @@ describe('synthetic data generator', () => {
     }
   });
 
-  it('CNC-03 vibration and cycle time rise after drift start', () => {
+  it('warning/critical machines run hotter vibration and cycle time than normal', () => {
     const { data } = generateShiftData();
+    const cnc01 = data.machines.find((m) => m.id === 'CNC-01')!;
     const cnc03 = data.machines.find((m) => m.id === 'CNC-03')!;
-    const before = cnc03.series[DRIFT_START - 1];
-    const after = cnc03.series[N - 1];
-    expect(after.vibration).toBeGreaterThan(before.vibration);
-    expect(after.cycleTime).toBeGreaterThan(before.cycleTime);
+    const avg = (m: any) => m.series.reduce((a: number, s: any) => a + s.vibration, 0) / m.series.length;
+    const avgCt = (m: any) => m.series.reduce((a: number, s: any) => a + s.cycleTime, 0) / m.series.length;
+    expect(avg(cnc03)).toBeGreaterThan(avg(cnc01));
+    expect(avgCt(cnc03)).toBeGreaterThan(avgCt(cnc01));
   });
 
   it('machine list omits full series', () => {
     const { machines } = generateShiftData();
-    expect(machines).toHaveLength(6);
+    expect(machines).toHaveLength(3);
     for (const m of machines) {
       expect(m.series).toEqual([]);
     }

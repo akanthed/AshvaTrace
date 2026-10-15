@@ -313,17 +313,24 @@ export async function investigateAgentic(
   // resolutions: "last time this pattern appeared, the fix was X and
   // verification confirmed it."
   const pastIncidentsSection = pastIncidents.length > 0
-    ? `\n\nPast incidents on this machine (resolved) — use these to inform your hypotheses. If a similar issue was resolved before, reference it explicitly (e.g. "This matches INC-XXX from Oct 2, which was resolved by replacing the spindle bearing and verified as fixed"):\n${pastIncidents.map((p) => {
+    ? `\n\nPAST INCIDENTS ON THIS MACHINE (resolved) — USE THESE TO INFORM YOUR HYPOTHESES:
+${pastIncidents.map((p) => {
         const date = new Date(p.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
         const lines = [
           `  ${p.id} (${date}): deviation ${p.devPct}%, severity ${p.severity}`,
           p.topHypothesis ? `    Root cause: ${p.topHypothesis}` : null,
-          p.actionTaken ? `    Action taken: ${p.actionTaken}` : null,
-          p.verificationPassed !== null ? `    Verification: ${p.verificationPassed ? 'PASS (fix confirmed)' : 'FAIL (fix did not work)'}` : null,
-          p.resolutionComment ? `    Notes: ${p.resolutionComment}` : null,
+          p.actionTaken ? `    Fix applied: ${p.actionTaken}` : null,
+          p.verificationPassed !== null ? `    Did the fix work: ${p.verificationPassed ? 'YES — verified' : 'NO — fix failed'}` : null,
+          p.resolutionComment ? `    Engineer note: ${p.resolutionComment}` : null,
         ].filter(Boolean);
         return lines.join('\n');
-      }).join('\n')}`
+      }).join('\n')}
+
+CRITICAL INSTRUCTION — YOU MUST USE PAST INCIDENTS:
+- If a past incident has a similar cause, you MUST reference it explicitly in your top hypothesis. Example: "This matches INC-PAST-001 from Oct 3, where the same spindle bearing failure was confirmed and fixed by replacing the bearing."
+- If a past fix was verified (worked), suggest it as the top hypothesis and say "This fix was verified to work last time."
+- If a past fix failed, warn against repeating it and say "This approach was tried before and did not work."
+- The engineer reading this needs to see the connection to history clearly. Do not bury it in technical jargon. Write in plain language.`
     : '';
 
   const systemPrompt = `You are an industrial maintenance AI investigating a CNC/manufacturing machine fault.
