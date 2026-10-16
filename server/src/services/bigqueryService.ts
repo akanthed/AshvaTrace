@@ -83,6 +83,7 @@ export async function initBigQuery(): Promise<void> {
         { name: 'simulation', type: 'STRING', mode: 'NULLABLE' },
         { name: 'verification', type: 'STRING', mode: 'NULLABLE' },
         { name: 'audit_log', type: 'STRING', mode: 'NULLABLE' },
+        { name: 'ai_cost_usd', type: 'FLOAT64', mode: 'NULLABLE' },
         { name: 'updated_at', type: 'TIMESTAMP', mode: 'REQUIRED' },
       ],
     }).catch(() => {});
@@ -132,6 +133,9 @@ export async function initBigQuery(): Promise<void> {
     // "latest row wins" read path works.
     await client()
       .query(`ALTER TABLE \`${datasetName()}.${ALERTS_TABLE}\` ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP`)
+      .catch(() => {});
+    await client()
+      .query(`ALTER TABLE \`${datasetName()}.${INCIDENTS_TABLE}\` ADD COLUMN IF NOT EXISTS ai_cost_usd FLOAT64`)
       .catch(() => {});
     await client()
       .query(`ALTER TABLE \`${datasetName()}.${MACHINES_TABLE}\` ADD COLUMN IF NOT EXISTS deleted BOOLEAN`)
@@ -443,6 +447,7 @@ export interface IncidentRow {
   simulation: string | null;
   verification: string | null;
   audit_log: string | null;
+  ai_cost_usd: number | null;
   updated_at: string;
 }
 
@@ -459,6 +464,7 @@ export async function upsertIncident(incident: {
   simulation?: unknown;
   verification?: unknown;
   auditLog?: unknown;
+  aiCostUsd?: number;
 }): Promise<void> {
   try {
     const table = client().dataset(datasetName()).table(INCIDENTS_TABLE);
@@ -477,6 +483,7 @@ export async function upsertIncident(incident: {
       simulation: incident.simulation ? JSON.stringify(incident.simulation) : null,
       verification: incident.verification ? JSON.stringify(incident.verification) : null,
       audit_log: incident.auditLog ? JSON.stringify(incident.auditLog) : null,
+      ai_cost_usd: incident.aiCostUsd ?? 0,
       updated_at: new Date().toISOString(),
     });
   } catch (err) {

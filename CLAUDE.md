@@ -26,11 +26,20 @@ dilute it.
     AI responses are a scoring risk, not just a code-quality issue.
   - Only 10% is UX polish. Don't over-invest in screens at the expense of
     the AI/backend work that carries 65% of the score.
-- **Submission requires**, separately from the prototype: a pitch deck PDF,
-  a public 3-minute video (YouTube/Vimeo/Drive), and problem-statement
-  labeling. These are mandatory deliverables, not optional extras — track
-  them as real workstreams.
-- Submission deadline: Oct 18, 2026.
+- **Submission requires, per the official rules (aibuildercup.com), four
+  separate artifacts**: (1) a working **deployed** prototype link (Cloud Run
+  or Firebase — not localhost, not a zip), (2) a **public GitHub repository**
+  of the prototype, (3) a video demo **under 3 minutes**, (4) a deck
+  explaining the solution. All four are mandatory, not optional extras —
+  track them as real workstreams. The repo being public is easy to miss and
+  easy to forget to flip before the deadline.
+- The organizers state the goal explicitly: a functional solution that
+  demonstrates the idea **in action — "not just a pitch deck or a mockup."**
+  Read literally, that is a direct warning against submitting the current
+  prototype state (hardcoded AI, nothing deployed) as-is.
+- Submission deadline: Oct 18, 2026 (confirmed directly on aibuildercup.com,
+  not just third-party listicles — some third-party sources had circulated
+  an incorrect Oct 4 date).
 
 ## Current state (as of this writing)
 

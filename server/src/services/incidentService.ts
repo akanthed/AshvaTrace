@@ -1,4 +1,4 @@
-import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, inspectToolImage, InvestigationTraceStep } from '../utils/ai';
+import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, inspectToolImage, InvestigationTraceStep, CostTracker } from '../utils/ai';
 import { getMachineById, getMachineStatus, getMachineSeries, getMachines } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
 import { retrieveSops, getSopById } from './sopService';
@@ -17,6 +17,7 @@ interface Incident {
   simulation?: SimulationResult;
   verification?: VerificationResult;
   auditLog: AuditEntry[];
+  aiCostUsd: number;
 }
 
 interface Hypothesis {
@@ -65,6 +66,7 @@ function persistIncident(incident: Incident): void {
     simulation: incident.simulation,
     verification: incident.verification,
     auditLog: incident.auditLog,
+    aiCostUsd: incident.aiCostUsd,
   });
 }
 
@@ -97,6 +99,7 @@ export async function loadPersistedIncidents(): Promise<void> {
       simulation: row.simulation ? JSON.parse(row.simulation) : undefined,
       verification: row.verification ? JSON.parse(row.verification) : undefined,
       auditLog: row.audit_log ? JSON.parse(row.audit_log) : [],
+      aiCostUsd: row.ai_cost_usd ?? 0,
     };
     incidents.set(incident.id, incident);
   }
@@ -440,6 +443,7 @@ export function seedPastIncidents(): void {
       severity: seed.severity,
       devPct: seed.devPct,
       hypotheses: seed.hypotheses,
+      aiCostUsd: 0,
       simulation: seed.simulation,
       verification: seed.verification,
       auditLog: [
@@ -532,6 +536,7 @@ export function seedOpenIncidents(): void {
       severity: seed.severity,
       devPct: seed.devPct,
       hypotheses: [],
+      aiCostUsd: 0,
       auditLog: [
         {
           timestamp: detectedAt,
@@ -788,12 +793,14 @@ export async function investigateIncident(
 
   let hypotheses;
   let trace: InvestigationTraceStep[] = [];
+  const tracker = new CostTracker();
   try {
-    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents);
-    hypotheses = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops);
+    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents, tracker);
+    hypotheses = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops, tracker);
     trace = agentic.trace;
   } catch (err: any) {
     incident.status = 'open';
+    incident.aiCostUsd += tracker.totalCostUsd();
     incident.auditLog.push({
       timestamp: new Date().toISOString(),
       actor: 'system',
@@ -805,12 +812,13 @@ export async function investigateIncident(
   }
   incident.hypotheses = hypotheses;
   incident.investigationTrace = trace;
+  incident.aiCostUsd += tracker.totalCostUsd();
 
   incident.auditLog.push({
     timestamp: new Date().toISOString(),
     actor: 'ai',
     action: 'hypotheses_generated',
-    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass`,
+    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass (AI cost: $${tracker.totalCostUsd().toFixed(4)})`,
   });
 
   persistIncident(incident);
@@ -832,6 +840,7 @@ export async function simulateAction(
   // Call AI for simulation. On failure, don't advance status or store a
   // simulation result — same honesty principle as investigateIncident.
   let simulation;
+  const tracker = new CostTracker();
   try {
     const postActionSop = await getSopById('SOP-103');
     simulation = await simulate(
@@ -840,9 +849,11 @@ export async function simulateAction(
         hypothesis: hypothesis.title,
         action: body.action,
       },
-      postActionSop
+      postActionSop,
+      tracker
     );
   } catch (err: any) {
+    incident.aiCostUsd += tracker.totalCostUsd();
     incident.auditLog.push({
       timestamp: new Date().toISOString(),
       actor: 'system',
@@ -854,6 +865,7 @@ export async function simulateAction(
   }
   incident.status = 'action_taken';
   incident.simulation = simulation;
+  incident.aiCostUsd += tracker.totalCostUsd();
 
   incident.auditLog.push({
     timestamp: new Date().toISOString(),
@@ -932,6 +944,7 @@ export function createIncident(machineId: string, devPct: number, severity: 'war
     severity,
     devPct,
     hypotheses: [],
+    aiCostUsd: 0,
     auditLog: [
       {
         timestamp: new Date().toISOString(),

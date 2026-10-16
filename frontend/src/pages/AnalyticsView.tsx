@@ -76,6 +76,10 @@ export function AnalyticsView() {
                 <small>Est. savings this shift</small>
                 <b style={{ color: 'var(--ok)' }}>{fmtUsd(impact.totalSavings)}</b>
               </div>
+              <div className="count">
+                <small>AI cost this shift</small>
+                <b>${impact.aiCostUsd.toFixed(2)}</b>
+              </div>
             </div>
             <p className="prov" style={{ margin: 0 }}>
               MTTR {impact.mttrReductionPct >= 0 ? 'reduced' : 'vs'} {impact.mttrReductionPct}% vs industry

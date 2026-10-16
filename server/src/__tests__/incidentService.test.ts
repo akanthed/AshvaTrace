@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Mock the AI layer so no real Gemini calls happen
 vi.mock('../utils/ai', () => ({
+  CostTracker: vi.fn().mockImplementation(() => ({
+    record: vi.fn(),
+    totalCostUsd: vi.fn(() => 0),
+    totalTokens: vi.fn(() => 0),
+    callCount: vi.fn(() => 0),
+  })),
   investigate: vi.fn(async () => [
     {
       id: 'HYP-1',

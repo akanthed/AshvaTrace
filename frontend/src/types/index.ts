@@ -79,6 +79,7 @@ export interface Incident {
     metrics: Record<string, number>;
   };
   auditLog: AuditEntry[];
+  aiCostUsd: number;
 }
 
 export interface AuditEntry {
@@ -157,6 +158,7 @@ export interface CostImpact {
   totalSavings: number;
   incidentsTotal: number;
   incidentsResolved: number;
+  aiCostUsd: number;
   assumptions: {
     downtimeCostPerHour: number;
     source: string;

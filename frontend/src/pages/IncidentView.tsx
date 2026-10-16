@@ -319,6 +319,11 @@ export function IncidentView() {
                     selectedId={selectedHyp}
                     onSelect={setSelectedHyp}
                   />
+                  {incident.aiCostUsd > 0 && (
+                    <p className="prov" style={{ marginTop: 10 }}>
+                      AI cost so far for this incident: ${incident.aiCostUsd.toFixed(4)}
+                    </p>
+                  )}
                 </div>
               )}
             </>
@@ -374,6 +379,11 @@ export function IncidentView() {
                   <div className="body">
                     <p style={{ margin: '0 0 6px' }}>{incident.simulation.predictedOutcome}</p>
                     <span className="prov">AI confidence: {incident.simulation.confidence}%</span>
+                    {incident.aiCostUsd > 0 && (
+                      <span className="prov" style={{ display: 'block', marginTop: 4 }}>
+                        AI cost so far for this incident: ${incident.aiCostUsd.toFixed(4)}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

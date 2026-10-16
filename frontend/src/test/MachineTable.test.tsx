@@ -133,6 +133,7 @@ describe('MachineTable', () => {
       devPct: 1152.1,
       hypotheses: [],
       auditLog: [],
+      aiCostUsd: 0,
     };
     (api.getIncidentsByMachine as Mock).mockImplementation((machineId: string) =>
       Promise.resolve(machineId === 'CNC-03' ? [openIncident] : [])

@@ -168,6 +168,11 @@ export function getCostImpact() {
   const avoidedDowntimeCost = (avoidedDowntimeMinutes / 60) * DOWNTIME_COST_PER_HOUR;
   const totalSavings = avoidedDowntimeCost + energyWasteCost;
 
+  // Real AI spend so far, summed across every incident's actual Gemini token
+  // usage (not an estimate) — what it has actually cost to run the AI on
+  // this shift's incidents.
+  const aiCostUsd = incidents.reduce((sum, i) => sum + (i.aiCostUsd || 0), 0);
+
   return {
     downtimeMinutes: Math.round(downtimeMinutes * 10) / 10,
     downtimeCost: Math.round(downtimeCost),
@@ -180,6 +185,7 @@ export function getCostImpact() {
     totalSavings: Math.round(totalSavings),
     incidentsTotal: incidents.length,
     incidentsResolved: resolved.length,
+    aiCostUsd: Math.round(aiCostUsd * 10000) / 10000,
     assumptions: {
       downtimeCostPerHour: DOWNTIME_COST_PER_HOUR,
       source: 'ABB 2023 Reliability Survey (median, all sectors)',

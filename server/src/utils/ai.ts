@@ -19,6 +19,55 @@ function gcpLocation() {
 // with no visible text at all.
 const NO_THINKING = { thinkingConfig: { thinkingBudget: 0 } };
 
+// Gemini Flash published per-token pricing (USD), overridable via env since
+// rates change and vary by model. Defaults match Gemini 2.0/2.5 Flash list
+// pricing at time of writing: $0.10 / 1M input tokens, $0.40 / 1M output
+// tokens (see ai.google.dev/pricing).
+function inputRatePerToken() {
+  return Number(process.env.GEMINI_INPUT_USD_PER_1M || 0.10) / 1_000_000;
+}
+function outputRatePerToken() {
+  return Number(process.env.GEMINI_OUTPUT_USD_PER_1M || 0.40) / 1_000_000;
+}
+
+export interface TokenUsage {
+  promptTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
+function usageFromMetadata(meta: any): TokenUsage {
+  const promptTokens = meta?.promptTokenCount || 0;
+  const outputTokens = meta?.candidatesTokenCount || 0;
+  const costUsd = promptTokens * inputRatePerToken() + outputTokens * outputRatePerToken();
+  return { promptTokens, outputTokens, costUsd };
+}
+
+// Accumulates the real token usage/cost of every Gemini call that goes into
+// one investigation or simulation, so the engineer sees what the AI step
+// actually cost — not an estimate. Passed by reference into the AI
+// functions below; they record into it as a side effect so call sites
+// (incidentService) don't need their return types to change.
+export class CostTracker {
+  private calls: TokenUsage[] = [];
+
+  record(usage: TokenUsage): void {
+    this.calls.push(usage);
+  }
+
+  totalCostUsd(): number {
+    return this.calls.reduce((sum, c) => sum + c.costUsd, 0);
+  }
+
+  totalTokens(): number {
+    return this.calls.reduce((sum, c) => sum + c.promptTokens + c.outputTokens, 0);
+  }
+
+  callCount(): number {
+    return this.calls.length;
+  }
+}
+
 let authClient: GoogleAuth | null = null;
 
 async function getAuthToken(): Promise<string> {
@@ -41,16 +90,19 @@ export interface ToolCall {
 export interface VertexResponse {
   text: string;
   toolCalls: ToolCall[];
+  usage: TokenUsage;
 }
 
 // Full generateContent call that also returns any functionCall parts the
 // model emitted. vertexAIRequest() below is a thin wrapper that drops the
-// tool calls — existing callers are unaffected.
+// tool calls — existing callers are unaffected. When `tracker` is passed,
+// this call's real token usage/cost is recorded into it.
 export function vertexAIRequestFull(
   model: string,
   prompt: string,
   config: Record<string, unknown> = {},
-  tools?: Array<Record<string, unknown>>
+  tools?: Array<Record<string, unknown>>,
+  tracker?: CostTracker
 ): Promise<VertexResponse> {
   const project = gcpProject();
   if (!project) {
@@ -99,7 +151,9 @@ export function vertexAIRequestFull(
                       name: p.functionCall.name,
                       args: p.functionCall.args || {},
                     }));
-                  resolve({ text, toolCalls });
+                  const usage = usageFromMetadata(json.usageMetadata);
+                  if (tracker) tracker.record(usage);
+                  resolve({ text, toolCalls, usage });
                 }
               } catch (e) {
                 reject(new Error(`Failed to parse Vertex AI response: ${body.slice(0, 200)}`));
@@ -118,9 +172,10 @@ export function vertexAIRequestFull(
 export function vertexAIRequest(
   model: string,
   prompt: string,
-  config: Record<string, unknown> = {}
+  config: Record<string, unknown> = {},
+  tracker?: CostTracker
 ): Promise<string> {
-  return vertexAIRequestFull(model, prompt, config).then((r) => r.text);
+  return vertexAIRequestFull(model, prompt, config, undefined, tracker).then((r) => r.text);
 }
 
 export function extractJson(text: string): unknown {
@@ -186,7 +241,8 @@ export async function investigate(
     devPct: number;
     signals: Record<string, number>;
   },
-  sops: SopExcerpt[] = []
+  sops: SopExcerpt[] = [],
+  tracker?: CostTracker
 ): Promise<Hypothesis[]> {
   const prompt = `You are an industrial maintenance AI investigating a CNC/manufacturing machine fault.
 
@@ -207,7 +263,7 @@ Generate 3-5 ranked hypotheses for the root cause of this deviation, grounded sp
 
 Respond with ONLY a JSON array, no markdown, no explanation.`;
 
-  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 1024, ...NO_THINKING });
+  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 1024, ...NO_THINKING }, tracker);
   const parsed = extractJson(text);
   const list = Array.isArray(parsed) ? parsed : [parsed];
   return list.map((h: any, i: number) => ({
@@ -304,7 +360,8 @@ export async function investigateAgentic(
   context: { machineId: string; devPct: number; signals: Record<string, number> },
   sops: SopExcerpt[] = [],
   toolExecutor: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>,
-  pastIncidents: PastIncidentRef[] = []
+  pastIncidents: PastIncidentRef[] = [],
+  tracker?: CostTracker
 ): Promise<AgenticInvestigationResult> {
   const trace: InvestigationTraceStep[] = [];
   const maxRounds = 3; // observe -> tools -> reason, capped so a chatty model can't loop forever
@@ -418,6 +475,7 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
         name: p.functionCall.name,
         args: p.functionCall.args || {},
       }));
+    if (tracker) tracker.record(usageFromMetadata(json.usageMetadata));
 
     // Append the model's turn to the conversation.
     contents.push({ role: 'model', parts });
@@ -479,7 +537,8 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
 export async function critiqueHypotheses(
   context: { machineId: string; devPct: number; signals: Record<string, number> },
   hypotheses: Hypothesis[],
-  sops: SopExcerpt[] = []
+  sops: SopExcerpt[] = [],
+  tracker?: CostTracker
 ): Promise<Hypothesis[]> {
   if (hypotheses.length === 0) return hypotheses;
 
@@ -502,7 +561,7 @@ If either check fails, lower that hypothesis's confidence (never raise it). If b
 Respond with ONLY a JSON array of {"id": string, "confidence": number}, no markdown, no explanation.`;
 
   try {
-    const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.1, maxOutputTokens: 512, ...NO_THINKING });
+    const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.1, maxOutputTokens: 512, ...NO_THINKING }, tracker);
     const parsed = extractJson(text);
     const corrections = new Map<string, number>(
       (Array.isArray(parsed) ? parsed : [parsed]).map((c: any) => [c.id, c.confidence])
@@ -525,7 +584,8 @@ export async function simulate(
     hypothesis: string;
     action: string;
   },
-  sop?: SopExcerpt
+  sop?: SopExcerpt,
+  tracker?: CostTracker
 ): Promise<SimulationResult> {
   const sopText = sop ? `\n\nRelevant SOP for what "recovered" should look like:\n${sop.id} — ${sop.title}:\n${sop.body}` : '';
   const prompt = `You are an industrial maintenance AI. Machine "${params.machineId}" has hypothesis "${params.hypothesis}".
@@ -537,7 +597,7 @@ Predict the outcome if this action is taken:
 
 Respond with ONLY a JSON object, no markdown, no explanation.`;
 
-  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 256, ...NO_THINKING });
+  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 256, ...NO_THINKING }, tracker);
   const parsed = extractJson(text) as any;
   return {
     action: params.action,
@@ -559,7 +619,8 @@ export interface VisionInspectionResult {
 
 export async function inspectToolImage(
   machineId: string,
-  wearLevel: number // 0-100, how worn the tool is (drives the synthetic image)
+  wearLevel: number, // 0-100, how worn the tool is (drives the synthetic image)
+  tracker?: CostTracker
 ): Promise<VisionInspectionResult> {
   // Generate a deterministic SVG "inspection photo" of a cutting tool.
   // The visual appearance changes with wearLevel: clean edge → chipped → broken.
@@ -627,6 +688,7 @@ Respond with ONLY a JSON object, no markdown, no explanation.`;
   });
 
   const text = (json.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+  if (tracker) tracker.record(usageFromMetadata(json.usageMetadata));
   const parsed = extractJson(text) as any;
 
   return {

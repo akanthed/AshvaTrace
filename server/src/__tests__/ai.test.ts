@@ -9,9 +9,10 @@ vi.mock('google-auth-library', () => ({
 }));
 
 // Mock https.request to simulate the Vertex AI generateContent REST response.
-const { mockResponseText, mockShouldError } = vi.hoisted(() => ({
+const { mockResponseText, mockShouldError, mockUsage } = vi.hoisted(() => ({
   mockResponseText: { value: '' },
   mockShouldError: { value: false },
+  mockUsage: { value: undefined as { promptTokenCount: number; candidatesTokenCount: number } | undefined },
 }));
 
 vi.mock('https', () => ({
@@ -28,6 +29,7 @@ vi.mock('https', () => ({
         callback(res);
         const body = JSON.stringify({
           candidates: [{ content: { parts: [{ text: mockResponseText.value }] } }],
+          usageMetadata: mockUsage.value,
         });
         res.emit('data', body);
         res.emit('end');
@@ -39,15 +41,18 @@ vi.mock('https', () => ({
 
 vi.hoisted(() => {
   process.env.GCP_PROJECT_ID = 'test-project';
+  process.env.GEMINI_INPUT_USD_PER_1M = '1';
+  process.env.GEMINI_OUTPUT_USD_PER_1M = '2';
 });
 
-import { investigate, critiqueHypotheses, simulate, verify } from '../utils/ai';
+import { investigate, critiqueHypotheses, simulate, verify, CostTracker } from '../utils/ai';
 
 describe('utils/ai', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockResponseText.value = '';
     mockShouldError.value = false;
+    mockUsage.value = undefined;
   });
 
   describe('investigate', () => {
@@ -156,6 +161,51 @@ describe('utils/ai', () => {
     it('is a no-op on an empty hypothesis list', async () => {
       const result = await critiqueHypotheses({ machineId: 'CNC-03', devPct: 15, signals: {} }, [], []);
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('cost tracking (CostTracker)', () => {
+    it('investigate records real token usage and cost into the passed tracker', async () => {
+      mockResponseText.value = JSON.stringify([{ title: 'Bearing wear', confidence: 80 }]);
+      mockUsage.value = { promptTokenCount: 1000, candidatesTokenCount: 500 };
+
+      const tracker = new CostTracker();
+      await investigate({ machineId: 'CNC-03', devPct: 15, signals: {} }, [], tracker);
+
+      // rates set to $1/1M input, $2/1M output above: 1000*1e-6 + 500*2e-6 = 0.002
+      expect(tracker.totalCostUsd()).toBeCloseTo(0.002, 6);
+      expect(tracker.totalTokens()).toBe(1500);
+      expect(tracker.callCount()).toBe(1);
+    });
+
+    it('accumulates cost across multiple calls sharing one tracker', async () => {
+      const tracker = new CostTracker();
+      mockResponseText.value = JSON.stringify([{ id: 'HYP-1', confidence: 70 }]);
+      mockUsage.value = { promptTokenCount: 100, candidatesTokenCount: 50 };
+
+      await critiqueHypotheses(
+        { machineId: 'CNC-03', devPct: 15, signals: {} },
+        [{ id: 'HYP-1', title: 'x', confidence: 50, evidenceFor: [], evidenceAgainst: [], sopRef: null }],
+        [],
+        tracker
+      );
+      mockUsage.value = { promptTokenCount: 200, candidatesTokenCount: 100 };
+      mockResponseText.value = JSON.stringify({ predictedOutcome: 'ok', confidence: 80 });
+      await simulate({ machineId: 'CNC-03', hypothesis: 'x', action: 'y' }, undefined, tracker);
+
+      expect(tracker.callCount()).toBe(2);
+      expect(tracker.totalTokens()).toBe(450); // 150 + 300
+    });
+
+    it('treats missing usageMetadata as zero cost rather than throwing', async () => {
+      mockResponseText.value = JSON.stringify([{ title: 'x', confidence: 50 }]);
+      mockUsage.value = undefined;
+
+      const tracker = new CostTracker();
+      await investigate({ machineId: 'CNC-03', devPct: 15, signals: {} }, [], tracker);
+
+      expect(tracker.totalCostUsd()).toBe(0);
+      expect(tracker.totalTokens()).toBe(0);
     });
   });
 
