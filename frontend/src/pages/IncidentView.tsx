@@ -294,7 +294,7 @@ export function IncidentView() {
               {incident.hypotheses.length === 0 && (
                 <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
                   <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start', padding: '10px 20px', fontSize: 14 }}>
-                    {investigating ? 'AI is investigating…' : investigateError ? 'Retry AI investigation' : '🔍 Run AI Investigation'}
+                    {investigating ? 'AI is investigating…' : investigateError ? 'Retry AI investigation' : 'Run AI Investigation'}
                   </button>
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>
                     The AI will analyze this incident's data and check past incidents on this machine to suggest likely causes.
