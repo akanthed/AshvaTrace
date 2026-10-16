@@ -28,6 +28,14 @@ export default function Sidebar() {
   const incidentMatch = location.pathname.match(/^\/incident\/([^/]+)/);
   const isIncidentRoute = !!incidentMatch;
 
+  // Which section the sidebar click should honor: inside Investigate (the
+  // open-incident list or an incident page) a machine click should route
+  // through its incident history, same as before. Everywhere else (Monitor
+  // pages) it should go straight to that machine's own monitoring view —
+  // the sidebar is rendered on every page, so without this it always did
+  // the incident redirect even when browsing Monitor.
+  const isInvestigateContext = isIncidentRoute || location.pathname.startsWith('/investigate');
+
   // On an incident page, the route param is the incident id, not a machine
   // id — resolve it to a machine id so the right sidebar row still highlights.
   useEffect(() => {
@@ -76,11 +84,16 @@ export default function Sidebar() {
     );
   };
 
-  // A machine with any incident history (open or closed) lands on its
-  // incidents list (open vs closed, with past cause/fix/verified) so the
-  // engineer picks which one to open — otherwise it lands on the Monitor
-  // tabs.
+  // While browsing Investigate, a machine with any incident history (open
+  // or closed) lands on its incidents list (open vs closed, with past
+  // cause/fix/verified) so the engineer picks which one to open. While
+  // browsing Monitor, go straight to that machine's monitoring tabs instead
+  // — Monitor clicks shouldn't be redirected into the investigation flow.
   const openMachine = async (machineId: string) => {
+    if (!isInvestigateContext) {
+      navigate(`/machine/${machineId}`);
+      return;
+    }
     try {
       const incidents = await api.getIncidentsByMachine(machineId);
       if ((incidents ?? []).length > 0) {
