@@ -18,7 +18,8 @@ dilute it.
 
 - **Mandatory**: integrate Gemini or Gemma (or an agentic platform — Agent
   Platform, Antigravity, AI Studio), deployed on Google Cloud via **Cloud Run
-  or Firebase**. No exceptions, no credit without this.
+  or Firebase**. No exceptions, no credit without this. **Satisfied** — see
+  Current state below.
 - **Judging weights**: Technical Merit & Gen AI Implementation 40%,
   Problem Alignment & Impact 25%, Innovation & Creativity 25%,
   UX & Solution Design 10%.
@@ -28,92 +29,174 @@ dilute it.
     the AI/backend work that carries 65% of the score.
 - **Submission requires, per the official rules (aibuildercup.com), four
   separate artifacts**: (1) a working **deployed** prototype link (Cloud Run
-  or Firebase — not localhost, not a zip), (2) a **public GitHub repository**
-  of the prototype, (3) a video demo **under 3 minutes**, (4) a deck
-  explaining the solution. All four are mandatory, not optional extras —
-  track them as real workstreams. The repo being public is easy to miss and
-  easy to forget to flip before the deadline.
+  or Firebase — not localhost, not a zip) — **done**, see URL below;
+  (2) a **public GitHub repository** of the prototype — **done**,
+  `github.com/akanthed/AshvaTrace` is public; (3) a video demo **under 3
+  minutes** — **not yet done**; (4) a deck explaining the solution — exists
+  as `AshvaTrace_Pitch_Deck.pdf`, confirm it's current before submitting.
+  All four are mandatory, not optional extras.
 - The organizers state the goal explicitly: a functional solution that
   demonstrates the idea **in action — "not just a pitch deck or a mockup."**
-  Read literally, that is a direct warning against submitting the current
-  prototype state (hardcoded AI, nothing deployed) as-is.
-- Submission deadline: Oct 18, 2026 (confirmed directly on aibuildercup.com,
-  not just third-party listicles — some third-party sources had circulated
-  an incorrect Oct 4 date).
+  Satisfied — the deployed app runs real Gemini calls end-to-end, not a
+  scripted demo.
+- Submission deadline: Oct 18, 2026 (confirmed directly on aibuildercup.com).
 
 ## Current state (as of this writing)
 
-- `prototype/ashvatrace-prototype.html` — single-file static HTML/CSS/JS
-  mockup styled after moneo (IO-Link/vibration monitoring platform used as
-  the visual/IA reference). Deterministic, seeded synthetic data generated
-  client-side (`rng`, `gauss`, array `S`). One scripted incident (CNC-03 /
-  INC-0412) is fully wired; other machines are stubs.
-  - Tabs per machine: Monitoring table, Trends, Dashboard (drag/drop tiles),
-    Threshold (editable alarm/warning limits, recolors live), Investigate,
-    Actions, Verify, Audit.
-  - **AI is currently faked**: `HYP` (hypotheses) and `ANS` (chat answers)
-    are hardcoded strings in the script. This is a mockup for layout
-    agreement only — it must not be mistaken for, or shipped as, the
-    submission's AI.
-- `AshvaTrace_Project_README.md` — original product/spec doc (local-first
-  principle, API surface, data file spec, evaluation checklist). Being
-  superseded; see README update alongside this file.
-- `AshvaTrace_Final_Product_and_Implementation_Pack.docx` — fuller original
-  spec document. Treat as background reference, not current source of
-  truth once implementation starts.
-- `scratch/moneo_theme.py` — scratch file from theme extraction, not part
-  of the shipped product.
-- No git repo yet. No backend. No real AI call anywhere yet. Nothing
-  deployed to Cloud Run.
+**The app is built, deployed, and the mandatory AI/Cloud Run gate is met.**
+This supersedes every earlier version of this file that described "no
+backend, no real AI call, nothing deployed" — that was true only for the
+very first static-mockup phase and is no longer accurate.
 
-## Plan: full rebuild starting next (frontend + backend + real AI)
+- **Live URL**: `https://ashvatrace-206380300251.us-central1.run.app`
+  (Cloud Run, project `ashvatrace`, region `us-central1`, service account
+  `deploy@ashvatrace.iam.gserviceaccount.com`).
+- **Repo**: `github.com/akanthed/AshvaTrace`, public.
+- **Frontend**: `frontend/` — React + Vite + TypeScript. Routes: Launch,
+  Monitoring (plant-wide table), Machine (per-machine tabs: Monitoring,
+  Dashboard, Threshold, Trends), Investigate (plant-wide open-incident
+  list), Incident (per-incident tabs: Investigate, Interventions, Verify,
+  Audit), Analytics, Settings. Sidebar shows the machine list and routes a
+  click to that machine's open incident if one exists, else its Machine
+  page.
+- **Backend**: `server/` — Node/Express + TypeScript, single container
+  serving both the built frontend (`server/public`, copied from
+  `frontend/dist` at build time) and the `/api/*` routes. BigQuery
+  (`@google-cloud/bigquery`) is the persistence layer (machines, incidents,
+  alerts, dashboard layouts, SOP documents) — append-only tables, latest
+  row per id wins on read.
+- **Real Gemini integration** (`server/src/utils/ai.ts`), via Vertex AI's
+  REST `generateContent` API using Application Default Credentials (no API
+  key in the browser, ever):
+  - `investigateAgentic()` — an actual tool-calling agent: Gemini calls
+    `get_power_window` / `get_vibration_stats` / `get_cycle_time_trend` /
+    `inspect_tool` to pull real sensor data before forming hypotheses,
+    grounded in retrieved SOP excerpts and past resolved incidents on the
+    same machine ("last time this happened, the fix was X and it worked").
+  - `critiqueHypotheses()` — a second, independent Gemini call that reviews
+    the first call's hypotheses against the real numbers and SOP text,
+    and can only lower confidence, never raise it or rewrite evidence —
+    this is the "structured reasoning," not a single-shot prompt.
+  - `inspectToolImage()` — Vision AI: generates a deterministic synthetic
+    tool-wear image and has Gemini assess condition/wear/recommendation
+    from it.
+  - `simulate()` — AI predicts the outcome of a proposed intervention in
+    plain language.
+  - `askAssistant()` (`chatService.ts`) — scoped chat over live app state,
+    with on-topic enforcement done by code (a forced `onTopic` boolean in
+    the model's structured JSON output), not by prompt-asking the model to
+    behave — a jailbroken response still can't escape the fixed refusal
+    text if `onTopic` isn't true.
+  - Every AI call records its **real token usage and cost** via
+    `CostTracker` (reads Vertex's `usageMetadata`, converts to USD from
+    `GEMINI_INPUT_USD_PER_1M`/`GEMINI_OUTPUT_USD_PER_1M`). Cost accumulates
+    per incident (`aiCostUsd`), persists to BigQuery, shows as a quiet line
+    in the Incident view and a tile in Analytics. This is measured cost,
+    not an estimate.
+  - `verify()` is explicitly **not** AI — deterministic pass/fail against
+    real post-action metrics. Preserve this split.
+- **Deterministic core**: threshold-based status (`normal`/`warning`/
+  `critical`), synthetic live data generation, energy/cost-impact
+  analytics, the dashboard/threshold editors — all unchanged by AI, all in
+  `machineService.ts` / `analyticsService.ts` / `synthetic.ts`.
+- **Generalized beyond one machine**: five live machines (`CNC-01`,
+  `CNC-02`, `CNC-03`, `LATHE-01`, `PRS-01`), investigation/simulation/
+  verification work for any of them, not just one scripted incident.
+- **Live auto-investigation**: a background loop ticks every 3s, advances
+  each machine's synthetic series, and when a machine crosses into
+  critical, automatically creates an incident and runs the real AI
+  investigation on it — so the "AI proposes" loop can be observed without
+  manual clicking (toggle via `LIVE_AUTO_INVESTIGATE=false`).
+- `prototype/ashvatrace-prototype.html` — the original static mockup.
+  Superseded by the real app; kept only as a historical reference for the
+  visual language (see Design conventions below). Not part of the shipped
+  product.
+- `AshvaTrace_Project_README.md`, `AshvaTrace_Final_Product_and_Implementation_Pack.docx`
+  — original pre-build spec documents. Background/historical reference
+  only; this file is the current source of truth.
+- `scratch/` — scratch files, not part of the shipped product.
 
-The mockup validated the UI direction; the team is now starting a real
-implementation from scratch covering frontend, backend, and actual
-Gemini/Gemma integration. Before writing implementation code for this phase,
-**use the brainstorming skill** to scope it properly (this is architectural
-work: new backend, new API, real external AI integration, deployment
-pipeline) — write a spec, get it approved, then use writing-plans.
+## Known issues / recent fixes (keep this section current)
 
-Known priorities for the rebuild, in order of score impact:
-1. Replace fake AI with a real Gemini/Gemma call for hypothesis generation
-   and the incident chat, server-side (credentials never in the browser).
-2. Minimal backend (per the original README's API sketch: `/api/analyze`,
-   `/api/investigate`, `/api/simulate`, `/api/verify`, etc.) — Node.js is
-   the prior assumption, revisit only if there's a concrete reason to.
-2. Deploy to Google Cloud Run (or Firebase) end-to-end, not just locally.
-3. Generalize the investigation pipeline beyond the single scripted
-   CNC-03 incident — a judge clicking another machine should not hit a
-   "not implemented" stub.
-4. Keep the deterministic screens (Monitoring table, Dashboard, Threshold,
-   Trends, Verify) deterministic. Do not bolt AI onto them just to
-   "use more AI" — judges score meaningful use, not AI surface area.
-5. Pitch deck PDF + 3-minute video are mandatory submission artifacts —
-   plan time for them, they are not an afterthought.
+- **Fixed (2026-10-16): duplicate incidents from concurrent instances.**
+  Cloud Run was running up to 12 concurrent instances; this server keeps
+  all state in per-process memory with no distributed lock, so each
+  instance independently created its own incident/alert for the same
+  real-world event (CNC-01 accumulated ~50 duplicate incidents this way).
+  Fixed by forcing Cloud Run to a single instance
+  (`gcloud run services update ashvatrace --max-instances=1 --min-instances=1`).
+  **If this service is ever made horizontally scalable, incident/alert
+  creation must move to an atomic, BigQuery-backed check-and-create — the
+  in-memory dedup in `incidentService.ts`/`alertService.ts` is only safe
+  single-instance.**
+- **Fixed (2026-10-16): alerts never cleared.** Nothing acknowledged an
+  alert when its incident resolved (or, for warning-only alerts with no
+  incident, when the machine's reading returned to normal) — alerts piled
+  up unbounded, and the bell badge / critical-alert banner kept surfacing
+  resolved problems. `checkThresholds()` now auto-clears both cases before
+  its own dedup check runs (`alertService.ts`,
+  `clearAlertsForResolvedIncidents`).
+- **Open**: incidents belonging to a since-deleted machine (e.g. a
+  demo/test machine like `GRD-01` that was removed) are orphaned — not
+  reachable via the Sidebar, and any live-metrics-dependent step (Verify)
+  silently degrades since `/api/machines/:id/status` 404s for a deleted
+  machine. `deleteMachine` cascades to that machine's own
+  incidents/alerts, but doesn't backfill for incidents that already lost
+  their machine before this existed. Not yet fixed — low priority, doesn't
+  block any current machine.
+- **Open**: `frontend/src/test/MachineView.test.tsx` has 3 pre-existing
+  stale assertions (a removed "← Back" button, ambiguous `getByText`
+  matches now that the machine name renders in two places) — predate the
+  AI-cost-tracking work, unrelated to it, not yet cleaned up.
+
+## Remaining work before the Oct 18 deadline
+
+1. **Record the 3-minute demo video** — the only mandatory artifact not
+   yet done. Walk: Monitoring → click a machine with an open incident →
+   Investigate tab (real AI hypotheses + agentic trace) → Interventions
+   (propose a fix, AI predicts outcome) → Verify (deterministic PASS/FAIL)
+   → Audit trail. This is a real, working flow on the deployed app now —
+   no need to fake or script around gaps.
+2. **Confirm the pitch deck** (`AshvaTrace_Pitch_Deck.pdf`) reflects the
+   real, built product rather than the original pre-build spec.
+3. Everything else on the original rebuild checklist (real AI, Cloud Run
+   deploy, multi-machine generalization, public repo) is done — don't
+   re-litigate it; verify via the live URL before assuming something is
+   missing.
 
 ## Design/UI conventions established so far
 
 - Visual language cloned from moneo screenshots on purpose: dark theme,
   single orange accent (`--accent:#f39200`), red/yellow/green reserved for
-  machine state, Roboto/Roboto Mono fonts, left-border accent cards
-  (`.inc-head`, `.alarmrow`). These were flagged by the design-review hook
-  as common AI-slop patterns (side-tab borders, overused font) and
-  deliberately suppressed via `.impeccable/config.json` — they're
-  intentional matches to the reference product, not defaults to avoid.
-- Synthetic data is seeded/deterministic (`rng(seed)`) so results are
-  reproducible across reloads — keep this property in any backend rewrite;
-  non-deterministic demo data makes debugging and judging reproducibility
-  harder.
+  machine state, Roboto/Roboto Mono fonts, left-border accent cards. These
+  were flagged by the design-review hook as common AI-slop patterns
+  (side-tab borders, overused font) and deliberately suppressed via
+  `.impeccable/config.json` — they're intentional matches to the reference
+  product, not defaults to avoid.
+- Synthetic data is seeded/deterministic so results are reproducible; the
+  live auto-advancing feed is layered on top without breaking that
+  property (same generation logic, just revealed progressively over time).
 - "Simulated data" / "no real PLC/CNC connection" framing must stay visible
   in the UI — this is both a safety/honesty requirement and a hackathon
   trust signal, don't remove it for cosmetic reasons.
+- All user-facing AI/cost text uses plain operational language for a
+  manufacturing-floor audience — no token counts, no "confidence score"
+  jargon, no model names in front of the engineer. Cost shows as a dollar
+  figure, not tokens.
 
 ## Working agreements
 
 - This is a Windows environment (PowerShell primary, Bash tool also
-  available). No git repo currently exists at the project root — check
-  before assuming git workflows apply.
-- Favor the lazy/ponytail approach: reuse existing patterns in the
-  prototype file before introducing new abstractions; keep the rebuild's
-  first version minimal enough to actually finish and deploy before the
-  Oct 18 deadline.
+  available).
+- Favor the lazy/ponytail approach: reuse existing patterns before
+  introducing new abstractions; keep changes minimal enough to actually
+  finish and verify before the Oct 18 deadline.
+- Before deploying, run `npm run build` and `npm test` in both `server/`
+  and `frontend/` — the server has a real Vitest suite (currently 73
+  tests) that mocks the AI layer and BigQuery; keep it green.
+- Deploy with `gcloud run deploy ashvatrace --source . --region
+  us-central1 --project ashvatrace` from the repo root (builds via the
+  root `Dockerfile`, which bundles frontend + backend into one image).
+  Always verify the live URL after deploying (`/api/system/status` for a
+  quick health/config check) rather than assuming a successful build means
+  a working deploy.

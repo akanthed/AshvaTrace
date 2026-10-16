@@ -19,7 +19,15 @@ AshvaTrace detects sustained deviations between actual and expected machine powe
 - Submission deadline: **Oct 18, 2026**.
 
 ## Current status
-A static HTML/CSS/JS mockup exists at `prototype/ashvatrace-prototype.html`, styled after the moneo monitoring platform for UI/IA agreement. Its AI responses (hypotheses, incident chat) are **hardcoded placeholder text**, not real model calls — it exists to validate layout and flow, not as the submission's AI implementation. There is no backend yet and nothing is deployed to Cloud Run. A full rebuild (real frontend + backend + a real Gemini/Gemma integration) is the next phase; see `CLAUDE.md` for the detailed plan and priorities.
+The app is built and deployed: a React/Vite frontend and a Node/Express
+backend (BigQuery-backed), with real Gemini-via-Vertex-AI calls for
+investigation, hypothesis critique, intervention simulation, Vision AI tool
+inspection, and a scoped chat assistant — live at
+`https://ashvatrace-206380300251.us-central1.run.app`. The mandatory
+hackathon gate (real Gemini/Gemma call, deployed on Cloud Run) is satisfied.
+See `CLAUDE.md` for the authoritative, currently-accurate state, what's
+fixed, what's still open, and what remains before the deadline — this
+section is kept short on purpose so it doesn't go stale again.
 
 ## Local-first principle
 Core analytics, charts, event history, calculations, intervention simulation and verification must work locally without cloud access. AI is optional:
@@ -62,16 +70,21 @@ Synthetic SOPs:
 - SOP-102 Tool Inspection
 - SOP-103 Post-Adjustment Verification
 
-## API
+## API (as actually built — see `server/src/routes/`)
 - `GET /health`
-- `GET /api/scenarios`
-- `POST /api/analyze`
-- `POST /api/investigate`
-- `POST /api/simulate`
-- `POST /api/work-orders/draft`
-- `POST /api/verify`
-- `GET /api/settings/ai`
-- `POST /api/settings/ai`
+- `GET /api/machines`, `/api/machines/:id`, `/api/machines/:id/status`,
+  `/api/machines/:id/series`, `/api/machines/:id/inspect-tool`
+- `GET /api/incidents`, `/api/incidents/:id`, `/api/incidents/machine?machineId=`
+- `POST /api/incidents/:id/investigate`, `/simulate`, `/verify`
+- `PATCH /api/incidents/:id/status`
+- `GET /api/incidents/:id/audit`, `/similar`
+- `GET /api/alerts`, `/api/alerts/machine/:id`, `POST /api/alerts/:id/acknowledge`
+- `GET /api/analytics/shift-summary`, `/threshold-violations`, `/energy-report`,
+  `/machine-comparison`, `/cost-impact`
+- `POST /api/chat/ask`
+- `GET /api/system/status`
+- `GET/PUT /api/dashboard-layout/:machineId`
+- `GET /api/sse/events` (Server-Sent Events, live machine/alert/incident updates)
 
 ## Local development
 Exact commands depend on the generated source tree. The implementation must document:
