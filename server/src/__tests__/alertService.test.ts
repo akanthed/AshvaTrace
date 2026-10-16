@@ -140,4 +140,31 @@ describe('alertService', () => {
     const updated = svc.getAlerts().find((a) => a.id === cnc03.id)!;
     expect(updated.acknowledged).toBe(false);
   });
+
+  it('auto-acknowledges a warning alert (no incident attached) once the machine reading normalizes', async () => {
+    // Warning alerts never get an incidentId (only criticals do), so they
+    // can only clear by comparing against the machine's current live status.
+    // Mock machineService directly to control that status without fighting
+    // the seeded deterministic series.
+    vi.resetModules();
+    vi.doMock('../services/machineService', () => ({
+      getMachines: () => [{ id: 'CNC-01', name: 'CNC Mill 01', thresholds: {} }],
+      getMachineStatus: vi.fn(() => ({ machineId: 'CNC-01', status: 'warning', devPct: 6 })),
+    }));
+    const freshSvc = await import('../services/alertService');
+
+    const first = freshSvc.checkThresholds();
+    const warning = first.find((a) => a.machineId === 'CNC-01' && a.severity === 'warning')!;
+    expect(warning).toBeDefined();
+    expect(warning.incidentId).toBeUndefined();
+
+    const { getMachineStatus } = await import('../services/machineService');
+    vi.mocked(getMachineStatus).mockReturnValue({ machineId: 'CNC-01', status: 'normal', devPct: 1 } as any);
+    freshSvc.checkThresholds();
+
+    const updated = freshSvc.getAlerts().find((a) => a.id === warning.id)!;
+    expect(updated.acknowledged).toBe(true);
+
+    vi.doUnmock('../services/machineService');
+  });
 });

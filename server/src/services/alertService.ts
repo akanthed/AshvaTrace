@@ -93,33 +93,46 @@ export function acknowledgeAlert(alertId: string, _body: { acknowledgedBy: strin
 // that opened it no longer describes an active problem.
 const INCIDENT_OPEN_STATUSES = ['open', 'investigating', 'action_taken'];
 
+function clearAlert(alert: Alert): void {
+  alert.acknowledged = true;
+  upsertAlert({
+    id: alert.id,
+    machineId: alert.machineId,
+    machineName: alert.machineName,
+    severity: alert.severity,
+    devPct: alert.devPct,
+    message: alert.message,
+    timestamp: alert.timestamp,
+    acknowledged: true,
+    incidentId: alert.incidentId,
+  });
+}
+
 // Alerts never get a user-driven "resolved" action — the engineer closes
-// the incident, not the alert. Without this, an alert linked to a
-// verified/closed incident (or one whose incident no longer exists) would
-// stay unacknowledged forever, so checkThresholds's dedup check would never
-// let a new alert fire for the next real problem on that machine, and the
-// bell badge / critical-alert banner would accumulate stale entries
+// the incident, not the alert. Without this, a stale alert would stay
+// unacknowledged forever, so checkThresholds's dedup check would never let
+// a new alert fire for the next real problem on that machine, and the bell
+// badge / critical-alert banner would accumulate stale entries
 // indefinitely. Called before the dedup check on every tick so a
-// just-resolved incident's alert clears before the next cycle looks for
-// one to reuse.
+// just-resolved problem's alert clears before the next cycle looks for one
+// to reuse. Two cases:
+//  - Critical alerts carry an incidentId: clear once that incident leaves
+//    the open states (verified/closed) or no longer exists.
+//  - Warning alerts carry no incidentId (only criticals open an incident):
+//    clear once the machine's live reading is no longer at or above
+//    warning severity.
 function clearAlertsForResolvedIncidents(): void {
   for (const alert of alerts.values()) {
-    if (alert.acknowledged || !alert.incidentId) continue;
-    const incident = getIncidentById(alert.incidentId);
-    if (!incident || !INCIDENT_OPEN_STATUSES.includes(incident.status)) {
-      alert.acknowledged = true;
-      upsertAlert({
-        id: alert.id,
-        machineId: alert.machineId,
-        machineName: alert.machineName,
-        severity: alert.severity,
-        devPct: alert.devPct,
-        message: alert.message,
-        timestamp: alert.timestamp,
-        acknowledged: true,
-        incidentId: alert.incidentId,
-      });
+    if (alert.acknowledged) continue;
+
+    if (alert.incidentId) {
+      const incident = getIncidentById(alert.incidentId);
+      if (!incident || !INCIDENT_OPEN_STATUSES.includes(incident.status)) clearAlert(alert);
+      continue;
     }
+
+    const status = getMachineStatus(alert.machineId);
+    if (!status || status.status !== alert.severity) clearAlert(alert);
   }
 }
 
