@@ -22,7 +22,7 @@ export function InvestigationTrace({ trace }: Props) {
         onClick={() => setOpen(!open)}
         style={{
           background: 'none',
-          border: '1px solid var(--border)',
+          border: '1px solid var(--line)',
           borderRadius: 6,
           color: 'var(--fg)',
           padding: '6px 10px',

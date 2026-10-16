@@ -192,11 +192,11 @@ export function IncidentView() {
               value=""
               onChange={(e) => e.target.value && handleStatusChange(e.target.value)}
               disabled={updatingStatus}
-              style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
+              style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--fg)', fontSize: 13 }}
             >
-              <option value="">Change status…</option>
+              <option value="" style={{ background: 'var(--panel)', color: 'var(--fg)' }}>Change status…</option>
               {availableStatuses.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option key={s.value} value={s.value} style={{ background: 'var(--panel)', color: 'var(--fg)' }}>{s.label}</option>
               ))}
             </select>
             <input
@@ -204,7 +204,7 @@ export function IncidentView() {
               placeholder="Resolution comment (optional)"
               value={resolutionComment}
               onChange={(e) => setResolutionComment(e.target.value)}
-              style={{ flex: 1, minWidth: 200, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg2)', color: 'var(--fg)', fontSize: 13 }}
+              style={{ flex: 1, minWidth: 200, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--line)', background: 'var(--panel)', color: 'var(--fg)', fontSize: 13 }}
             />
             {statusError && <span style={{ color: 'var(--crit)', fontSize: 12 }}>{statusError}</span>}
           </div>
