@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Mock the incident service so checkThresholds doesn't create real incidents
+// Mock the incident service so checkThresholds doesn't create real incidents.
+// getIncidentById defaults to an open incident so existing dedup tests see
+// the alert as still describing a live problem; tests for the auto-clear
+// behavior override this per-test.
 vi.mock('../services/incidentService', () => ({
   createIncident: vi.fn((machineId: string, devPct: number, severity: string) => ({
     id: `INC-TEST-${machineId}`,
@@ -8,6 +11,7 @@ vi.mock('../services/incidentService', () => ({
     devPct,
     severity,
   })),
+  getIncidentById: vi.fn((id: string) => ({ id, status: 'open' })),
 }));
 
 import {
@@ -17,7 +21,7 @@ import {
   acknowledgeAlert,
 } from '../services/alertService';
 import { initShiftData } from '../services/machineService';
-import { createIncident } from '../services/incidentService';
+import { createIncident, getIncidentById } from '../services/incidentService';
 
 // The alert store is module-level and persists across tests, so reset it
 // between tests by re-importing a fresh module instance.
@@ -33,6 +37,9 @@ describe('alertService', () => {
   beforeEach(async () => {
     initShiftData();
     vi.clearAllMocks();
+    // clearAllMocks resets call history but not a mockReturnValue set by an
+    // earlier test, so restore the "incident still open" default explicitly.
+    vi.mocked(getIncidentById).mockImplementation((id: string) => ({ id, status: 'open' }) as any);
     svc = await resetAlertStore();
   });
 
@@ -98,5 +105,39 @@ describe('alertService', () => {
 
   it('acknowledgeAlert returns null for unknown alert id', () => {
     expect(svc.acknowledgeAlert('ALR-DOES-NOT-EXIST', { acknowledgedBy: 'x' })).toBeNull();
+  });
+
+  it('auto-acknowledges an alert once its incident resolves, so a new one can fire for the next problem', () => {
+    const first = svc.checkThresholds();
+    const cnc03 = first.find((a) => a.machineId === 'CNC-03' && a.severity === 'critical')!;
+    expect(cnc03.acknowledged).toBe(false);
+
+    // Incident reaches a terminal state — the next tick should clear the alert.
+    vi.mocked(getIncidentById).mockReturnValue({ id: cnc03.incidentId!, status: 'verified' } as any);
+    svc.checkThresholds();
+
+    const updated = svc.getAlerts().find((a) => a.id === cnc03.id)!;
+    expect(updated.acknowledged).toBe(true);
+  });
+
+  it('auto-acknowledges an alert whose incident no longer exists', () => {
+    const first = svc.checkThresholds();
+    const cnc03 = first.find((a) => a.machineId === 'CNC-03' && a.severity === 'critical')!;
+
+    vi.mocked(getIncidentById).mockReturnValue(null as any);
+    svc.checkThresholds();
+
+    const updated = svc.getAlerts().find((a) => a.id === cnc03.id)!;
+    expect(updated.acknowledged).toBe(true);
+  });
+
+  it('does not touch an alert whose incident is still open', () => {
+    const first = svc.checkThresholds();
+    const cnc03 = first.find((a) => a.machineId === 'CNC-03' && a.severity === 'critical')!;
+
+    svc.checkThresholds(); // getIncidentById still returns status: 'open' by default
+
+    const updated = svc.getAlerts().find((a) => a.id === cnc03.id)!;
+    expect(updated.acknowledged).toBe(false);
   });
 });

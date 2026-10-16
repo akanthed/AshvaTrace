@@ -1,5 +1,5 @@
 import { getMachines, getMachineStatus } from './machineService';
-import { createIncident } from './incidentService';
+import { createIncident, getIncidentById } from './incidentService';
 import { upsertAlert, queryAlerts, AlertRow } from './bigqueryService';
 
 interface Alert {
@@ -88,8 +88,44 @@ export function acknowledgeAlert(alertId: string, _body: { acknowledgedBy: strin
   return alert;
 }
 
+// An incident is still "live" in any of these statuses (mirrors
+// incidentService's OPEN_STATUSES) — once it leaves this set, the alert
+// that opened it no longer describes an active problem.
+const INCIDENT_OPEN_STATUSES = ['open', 'investigating', 'action_taken'];
+
+// Alerts never get a user-driven "resolved" action — the engineer closes
+// the incident, not the alert. Without this, an alert linked to a
+// verified/closed incident (or one whose incident no longer exists) would
+// stay unacknowledged forever, so checkThresholds's dedup check would never
+// let a new alert fire for the next real problem on that machine, and the
+// bell badge / critical-alert banner would accumulate stale entries
+// indefinitely. Called before the dedup check on every tick so a
+// just-resolved incident's alert clears before the next cycle looks for
+// one to reuse.
+function clearAlertsForResolvedIncidents(): void {
+  for (const alert of alerts.values()) {
+    if (alert.acknowledged || !alert.incidentId) continue;
+    const incident = getIncidentById(alert.incidentId);
+    if (!incident || !INCIDENT_OPEN_STATUSES.includes(incident.status)) {
+      alert.acknowledged = true;
+      upsertAlert({
+        id: alert.id,
+        machineId: alert.machineId,
+        machineName: alert.machineName,
+        severity: alert.severity,
+        devPct: alert.devPct,
+        message: alert.message,
+        timestamp: alert.timestamp,
+        acknowledged: true,
+        incidentId: alert.incidentId,
+      });
+    }
+  }
+}
+
 // Check all machines for threshold violations and create alerts
 export function checkThresholds(): Alert[] {
+  clearAlertsForResolvedIncidents();
   const machines = getMachines();
   const newAlerts: Alert[] = [];
 
