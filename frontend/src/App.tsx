@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import LaunchView from './pages/LaunchView';
 import MonitoringView from './pages/MonitoringView';
 import { MachineView } from './pages/MachineView';
+import { MachineIncidentsView } from './pages/MachineIncidentsView';
 import { IncidentView } from './pages/IncidentView';
 import { InvestigationListView } from './pages/InvestigationListView';
 import { AnalyticsView } from './pages/AnalyticsView';
@@ -22,6 +23,7 @@ function Shell() {
           <Route path="/" element={<LaunchView />} />
           <Route path="/monitoring" element={<MonitoringView />} />
           <Route path="/machine/:id" element={<MachineView />} />
+          <Route path="/machine/:id/incidents" element={<MachineIncidentsView />} />
           <Route path="/investigate" element={<InvestigationListView />} />
           <Route path="/incident/:id" element={<IncidentView />} />
           <Route path="/analytics" element={<AnalyticsView />} />

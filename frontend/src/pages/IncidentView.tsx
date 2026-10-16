@@ -294,7 +294,7 @@ export function IncidentView() {
               {incident.hypotheses.length === 0 && (
                 <div style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
                   <button className="primary" onClick={handleInvestigate} disabled={investigating} style={{ justifySelf: 'start', padding: '10px 20px', fontSize: 14 }}>
-                    {investigating ? 'AI is investigating…' : investigateError ? 'Retry AI investigation' : 'Run AI Investigation'}
+                    {investigating ? 'Asking AI…' : investigateError ? 'Retry — Ask AI' : 'Ask AI'}
                   </button>
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>
                     The AI will analyze this incident's data and check past incidents on this machine to suggest likely causes.
@@ -319,6 +319,11 @@ export function IncidentView() {
                     selectedId={selectedHyp}
                     onSelect={setSelectedHyp}
                   />
+                  {selectedHyp && (
+                    <button className="primary" onClick={() => setTab('actions')} style={{ marginTop: 10 }}>
+                      Go to Interventions →
+                    </button>
+                  )}
                   {incident.aiCostUsd > 0 && (
                     <p className="prov" style={{ marginTop: 10 }}>
                       AI cost so far for this incident: ${incident.aiCostUsd.toFixed(4)}

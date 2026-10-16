@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMachines } from '../hooks/useMachines';
 import { api } from '../services/api';
-import type { Incident } from '../types';
 
 function statusToSt(status: string): 'ok' | 'warn' | 'crit' {
   if (status === 'critical') return 'crit';
@@ -77,17 +76,15 @@ export default function Sidebar() {
     );
   };
 
-  // A machine with an open incident goes straight to its incident page
-  // (Investigate/Actions/Verify/Audit) — otherwise it lands on the Monitor
-  // tabs. Checked regardless of the machine's current live status: a reading
-  // can drift back to normal while the incident investigating it is still
-  // open, and that incident should still be reachable from the sidebar.
+  // A machine with any incident history (open or closed) lands on its
+  // incidents list (open vs closed, with past cause/fix/verified) so the
+  // engineer picks which one to open — otherwise it lands on the Monitor
+  // tabs.
   const openMachine = async (machineId: string) => {
     try {
       const incidents = await api.getIncidentsByMachine(machineId);
-      const open = (incidents ?? []).find((i: Incident) => i.status !== 'closed');
-      if (open) {
-        navigate(`/incident/${open.id}`);
+      if ((incidents ?? []).length > 0) {
+        navigate(`/machine/${machineId}/incidents`);
         return;
       }
     } catch {

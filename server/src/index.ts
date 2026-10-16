@@ -83,7 +83,7 @@ async function start() {
   // When a machine's live data spikes into warning/critical territory, the
   // threshold checker (below) creates alerts + incidents, and we auto-run
   // the AI investigation so the full "AI proposes" loop happens on its own.
-  const AUTO_INVESTIGATE = process.env.LIVE_AUTO_INVESTIGATE !== 'false'; // default on
+  const AUTO_INVESTIGATE = process.env.LIVE_AUTO_INVESTIGATE === 'true'; // default off — engineer clicks "Ask AI"
   const investigating = new Set<string>(); // incident ids currently being investigated
 
   setInterval(async () => {
