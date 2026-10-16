@@ -54,11 +54,14 @@ very first static-mockup phase and is no longer accurate.
 - **Repo**: `github.com/akanthed/AshvaTrace`, public.
 - **Frontend**: `frontend/` — React + Vite + TypeScript. Routes: Launch,
   Monitoring (plant-wide table), Machine (per-machine tabs: Monitoring,
-  Dashboard, Threshold, Trends), Investigate (plant-wide open-incident
+  Dashboard, Threshold, Trends), Machine Incidents (`/machine/:id/incidents`
+  — that machine's Open and Closed incidents; closed ones show the cause,
+  fix tried, and whether it worked), Investigate (plant-wide open-incident
   list), Incident (per-incident tabs: Investigate, Interventions, Verify,
-  Audit), Analytics, Settings. Sidebar shows the machine list and routes a
-  click to that machine's open incident if one exists, else its Machine
-  page.
+  Audit), Analytics, Settings. Sidebar routes a machine tile click to its
+  incidents list if it has any incident history, else its Machine page —
+  it no longer auto-jumps straight into the open incident, so the engineer
+  sees open/closed history before picking one.
 - **Backend**: `server/` — Node/Express + TypeScript, single container
   serving both the built frontend (`server/public`, copied from
   `frontend/dist` at build time) and the `/api/*` routes. BigQuery
@@ -82,6 +85,15 @@ very first static-mockup phase and is no longer accurate.
     from it.
   - `simulate()` — AI predicts the outcome of a proposed intervention in
     plain language.
+  - Hypotheses only appear after the engineer clicks **Ask AI** (renamed
+    from "Run AI Investigation") on the Incident view's Investigate tab.
+    `LIVE_AUTO_INVESTIGATE` (background auto-run on every new critical
+    incident) now **defaults off** — it previously ran Gemini the instant
+    an incident opened, which looked indistinguishable from a manual
+    click and defeated the point of showing an "Ask AI" affordance. Set
+    `LIVE_AUTO_INVESTIGATE=true` to restore the old always-on behavior.
+    Once a hypothesis is selected, a "Go to Interventions" button jumps
+    straight to the Interventions tab.
   - `askAssistant()` (`chatService.ts`) — scoped chat over live app state,
     with on-topic enforcement done by code (a forced `onTopic` boolean in
     the model's structured JSON output), not by prompt-asking the model to
@@ -118,6 +130,18 @@ very first static-mockup phase and is no longer accurate.
 
 ## Known issues / recent fixes (keep this section current)
 
+- **Fixed (2026-10-16): Investigate tab skipped straight to AI text with no
+  incident overview.** Clicking a machine tile auto-jumped into its open
+  incident, so a user never saw that machine's open/closed incident history
+  first, and `LIVE_AUTO_INVESTIGATE` ran Gemini automatically the instant an
+  incident went critical — indistinguishable from the "Ask AI" button ever
+  having been clicked. Added `MachineIncidentsView`
+  (`/machine/:id/incidents`), changed the Sidebar to route there instead of
+  auto-opening the incident, turned `LIVE_AUTO_INVESTIGATE` off by default,
+  renamed the button to "Ask AI", and added a "Go to Interventions" button
+  once a hypothesis is picked. Threshold-gated incident open/reopen and the
+  past-incident correlation shown inside an incident were already correct
+  and unchanged.
 - **Fixed (2026-10-16): duplicate incidents from concurrent instances.**
   Cloud Run was running up to 12 concurrent instances; this server keeps
   all state in per-process memory with no distributed lock, so each
