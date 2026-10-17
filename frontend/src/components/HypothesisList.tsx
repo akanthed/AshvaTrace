@@ -46,7 +46,7 @@ export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
         return (
           <article
             key={h.id}
-            className={`hyp ${selected ? 'selected' : ''} ${i === 0 ? 'top' : ''}`}
+            className={`hyp ${selected ? 'selected' : ''} ${i === 0 ? 'best' : ''}`}
             onClick={() => onSelect?.(h.id)}
             style={{ cursor: onSelect ? 'pointer' : undefined }}
           >

@@ -333,10 +333,13 @@ export function IncidentView() {
             <>
               {/* All incidents on this machine — open + past, so the user sees history */}
               {allIncidents.length > 0 && (
-                <div style={{ marginBottom: 16, display: 'grid', gap: 8 }}>
-                  <h4 style={{ margin: 0, fontSize: 13, color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                    Incidents on {incident.machineName}
-                  </h4>
+                <details className="history">
+                  <summary>
+                    History on {incident.machineName}: {allIncidents.length} incident{allIncidents.length === 1 ? '' : 's'}
+                    {' '}({allIncidents.filter((i) => i.verification?.passed).length} fixed and verified,{' '}
+                    {allIncidents.filter((i) => i.verification && !i.verification.passed).length} fix did not work)
+                  </summary>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
                   {allIncidents.map((inc) => {
                     const isOpen = inc.status === 'open' || inc.status === 'investigating' || inc.status === 'action_taken';
                     const isCurrent = inc.id === incident.id;
@@ -386,7 +389,8 @@ export function IncidentView() {
                       </article>
                     );
                   })}
-                </div>
+                  </div>
+                </details>
               )}
 
               {incident.hypotheses.length === 0 && (

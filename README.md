@@ -34,13 +34,14 @@ flowchart LR
     D --> E[Independent critic<br/>can only lower confidence]
     E --> F[Grounding check<br/>deterministic: every quoted<br/>number must exist in the data]
     F --> G[Engineer picks hypothesis<br/>and intervention]
-    G --> H[Gemini predicts outcome]
+    G --> H["Gemini predicts outcome<br/>and commits to a number"]
     H --> I[Real post-action metrics]
     I --> J{"verify()<br/>deterministic"}
-    J -->|PASS| K[Incident resolved]
+    J -->|PASS| K["Incident resolved<br/>savings in kW, $/day, CO2"]
     J -->|FAIL| L[Hypothesis unconfirmed,<br/>escalate]
     K --> M[(Audit trail +<br/>institutional memory)]
     L --> M
+    M --> N["AI report card<br/>code grades the AI"]
 ```
 
 Four places where plain code, not a model, has the last word:
@@ -71,22 +72,24 @@ Chat is guarded the same way: on-topic enforcement is a forced `onTopic` boolean
 ```mermaid
 flowchart TB
     subgraph Browser
-        UI[React + Vite + TypeScript<br/>Monitoring · Machine · Incident · Analytics · Settings]
+        UI[React + Vite + TypeScript<br/>Monitoring · Machine · Incident · Analytics (AI report card) · Settings]
     end
 
     subgraph CloudRun[Google Cloud Run: single container]
         direction TB
         API[Express API + static frontend]
-        SIM[Live simulator<br/>3 s tick per machine]
+        SIM[Live simulator<br/>3 s tick per machine<br/>machines added by IP + port]
         THR[Threshold checker<br/>5 s]
         INC[Incident service]
-        AI[AI layer: ai.ts · grounding.ts<br/>investigationTools.ts · chatService.ts]
+        AI[AI layer: ai.ts · grounding.ts<br/>investigationTools.ts · chatService.ts<br/>sensor tools run in parallel by code]
         VER["verify() - pure function"]
+        TRK["AI report card<br/>trackRecordService.ts"]
         SSE[SSE broadcaster]
         API --- INC
         SIM --> THR --> INC
         INC --> AI
         INC --> VER
+        VER --> TRK
         INC --> SSE
     end
 

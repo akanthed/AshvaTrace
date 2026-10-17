@@ -1719,11 +1719,11 @@ table.thr input {
 .hyp-list { display: grid; gap: 12px; }
 .hyp { transition: border-color 0.15s, background 0.15s; }
 .hyp:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
-.hyp.top { border-left: 3px solid var(--accent); }
+.hyp.best { border-left: 3px solid var(--accent); }
 .hyp.selected { outline: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--panel-2)); }
 .hyp-title { flex: 1; min-width: 180px; }
 .hyp .rank { letter-spacing: 0.08em; }
-.hyp.top .rank { color: var(--accent); }
+.hyp.best .rank { color: var(--accent); }
 .fa ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
 .conf { display: flex; align-items: center; gap: 10px; }
 .conf-bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; max-width: 260px; }
@@ -1812,3 +1812,7 @@ table.thr input {
 .savings-stats strong { font-size: 20px; color: var(--ok); }
 .rcard { display: grid; gap: 14px; }
 .track-line { margin: 0 0 12px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--panel-2); font-size: 13px; }
+
+.history { margin-bottom: 14px; border: 1px solid var(--line); background: var(--panel-2); padding: 8px 12px; }
+.history summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.history[open] summary { margin-bottom: 4px; }
