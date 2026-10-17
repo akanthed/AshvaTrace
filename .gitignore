@@ -41,6 +41,12 @@ AshvaTrace_Final_Product_and_Implementation_Pack.docx
 frontend/src/assets/react.svg
 frontend/src/assets/vite.svg
 frontend/src/assets/hero.png
-AshvaTrace_Pitch_Deck.pdf
+
+# Submission material and internal notes: kept locally, not part of the judged repository
 AshvaTrace_Pitch_Deck.pdf
 AshvaTrace_Submission_Answers.md
+CLAUDE.md
+
+# Dev-tool config and the superseded static mockup (not part of the shipped product)
+.impeccable/
+prototype/

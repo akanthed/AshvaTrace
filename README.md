@@ -12,7 +12,6 @@ AshvaTrace is an evidence-based investigation assistant for factory machines. It
 | **Hosting** | Google Cloud Run (`us-central1`) |
 | **AI** | Gemini on Vertex AI (server-side, Application Default Credentials) |
 | **Persistence** | BigQuery |
-| **Pitch deck** | [AshvaTrace_Pitch_Deck.pdf](AshvaTrace_Pitch_Deck.pdf) |
 | **Demo video** | _link added at submission_ |
 
 > **Simulated data.** There is no real PLC, CNC or machine network connection. Machine telemetry is seeded, synthetic data with a live random-walk feed on top. The UI says so on purpose. Gemini calls, BigQuery storage and Cloud Run hosting are all real.
@@ -166,9 +165,7 @@ sequenceDiagram
 .
 ├── Dockerfile                  # frontend + backend -> one Cloud Run image
 ├── cloudbuild.yaml
-├── AshvaTrace_Pitch_Deck.pdf
 ├── TESTING_GUIDE.md            # QA walkthrough of every screen and flow
-├── CLAUDE.md                   # engineering notes and current status
 ├── frontend/
 │   ├── src/pages/              # Monitoring, Machine, Incident, Analytics, Settings...
 │   ├── src/components/         # HypothesisList, InvestigationTrace, AuditLog, ...
@@ -340,8 +337,6 @@ Real OPC UA / MQTT ingestion in place of the simulator, per-machine verification
 ## Documentation
 
 - [TESTING_GUIDE.md](TESTING_GUIDE.md): plain-language QA walkthrough of every screen
-- [CLAUDE.md](CLAUDE.md): engineering notes, fixes and current status
-- [AshvaTrace_Pitch_Deck.pdf](AshvaTrace_Pitch_Deck.pdf): pitch deck
 
 ## Hackathon
 
