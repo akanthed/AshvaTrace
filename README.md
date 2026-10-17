@@ -27,7 +27,7 @@ AshvaTrace closes the whole loop in one place, and keeps AI honest while doing i
 ## The core idea: AI proposes, code verifies
 
 ```mermaid
-flowchart LR
+flowchart TB
     A[Threshold breach<br/>deterministic] --> B[Incident opened]
     B --> C[Engineer clicks Ask AI]
     C --> D["Gemini agent<br/>calls tools, reads SOPs<br/>and past incidents"]
@@ -72,7 +72,7 @@ Chat is guarded the same way: on-topic enforcement is a forced `onTopic` boolean
 ```mermaid
 flowchart TB
     subgraph Browser
-        UI[React + Vite + TypeScript<br/>Monitoring · Machine · Incident · Analytics (AI report card) · Settings]
+        UI["React + Vite + TypeScript<br/>Monitoring · Machine · Incident<br/>Analytics (AI report card) · Settings"]
     end
 
     subgraph CloudRun[Google Cloud Run: single container]
