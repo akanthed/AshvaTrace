@@ -3,7 +3,7 @@ import { querySops, SopRow } from './bigqueryService';
 // Local fallback copy of the same synthetic SOPs seeded into BigQuery, used
 // when BigQuery is unavailable (no GCP_PROJECT_ID, e.g. local dev / tests) so
 // retrieval always has something to ground hypotheses in.
-const FALLBACK_SOPS: SopRow[] = [
+export const FALLBACK_SOPS: SopRow[] = [
   {
     id: 'SOP-101',
     title: 'Process Drift Response',
@@ -41,7 +41,10 @@ async function allSops(): Promise<SopRow[]> {
 // is guaranteed to be real reference material, not something the model
 // invented or misremembered.
 export async function retrieveSops(signals: Record<string, number>): Promise<SopRow[]> {
-  const sops = await allSops();
+  return selectSops(await allSops(), signals);
+}
+
+export function selectSops(sops: SopRow[], signals: Record<string, number>): SopRow[] {
   const matched: SopRow[] = [];
 
   const powerDev = Math.abs(signals.powerDevPct ?? 0);

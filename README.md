@@ -1,112 +1,336 @@
-# AshvaTrace — Energy-Aware Quality Intelligence
+# AshvaTrace
 
-**Team:** Ashvamedh
-**Hackathon:** AI Builder Cup 2026
-**Theme:** Manufacturing — Intelligent Operations & Industrial Efficiency
-**Tagline:** Detect the signal. Investigate the cause. Verify the improvement.
+**Detect the signal. Investigate the cause. Verify the improvement.**
 
-> See `CLAUDE.md` for current build status, the Gen AI/judging constraints
-> driving design decisions, and the rebuild plan. This file is the product
-> spec; `CLAUDE.md` tracks what's actually true right now.
+AshvaTrace is an evidence-based investigation assistant for factory machines. It spots sustained gaps between a machine's actual and expected power draw, pulls in vibration, cycle-time and event history, and has Gemini investigate like an engineer would: calling tools to fetch real sensor data, citing SOPs and past fixes, and proposing ranked, competing hypotheses. A human approves the fix. **Deterministic code, not AI, decides whether it worked.**
 
-## What it does
-AshvaTrace detects sustained deviations between actual and expected machine power, correlates them with vibration, cycle time, dimensional quality and event history, and opens an evidence-based investigation. AI proposes ranked, competing hypotheses with evidence for and against, grounded in operational data and SOP excerpts. An engineer approves a simulated intervention, and **deterministic code — not AI — verifies the outcome** against pass/fail criteria. That separation (AI proposes, code verifies) is the project's core differentiator and must be preserved through every iteration.
+> Built for **AI Builder Cup 2026** · Theme: Manufacturing, *Intelligent Operations & Industrial Efficiency* · Team Ashvamedh
 
-## Hackathon requirements (binding, not optional)
-- **AI is mandatory, not optional**: every submission must integrate Google AI models (Gemini or Gemma family) or be built on an agentic platform (Agent Platform, Antigravity, AI Studio). It must be deployed on Google Cloud via **Cloud Run or Firebase**. A prototype without a real model call and a real Cloud Run/Firebase deployment does not qualify, regardless of UI quality.
-- **Judging weights**: Technical Merit & Gen AI Implementation **40%** (explicitly penalizes superficial/basic Gen AI use), Problem Alignment & Impact **25%**, Innovation & Creativity **25%**, UX & Solution Design **10%**. Build effort should track these weights — UI polish alone cannot win this.
-- **Mandatory submission artifacts** beyond the working prototype: a pitch deck (PDF), a public 3-minute demo video (YouTube/Vimeo/Drive), and clear problem-statement labeling.
-- Submission deadline: **Oct 18, 2026**.
+| | |
+|---|---|
+| **Live demo** | https://ashvatrace-206380300251.us-central1.run.app |
+| **Hosting** | Google Cloud Run (`us-central1`) |
+| **AI** | Gemini on Vertex AI (server-side, Application Default Credentials) |
+| **Persistence** | BigQuery |
+| **Pitch deck** | [AshvaTrace_Pitch_Deck.pdf](AshvaTrace_Pitch_Deck.pdf) |
+| **Demo video** | _link added at submission_ |
 
-## Current status
-The app is built and deployed: a React/Vite frontend and a Node/Express
-backend (BigQuery-backed), with real Gemini-via-Vertex-AI calls for
-investigation, hypothesis critique, intervention simulation, Vision AI tool
-inspection, and a scoped chat assistant — live at
-`https://ashvatrace-206380300251.us-central1.run.app`. The mandatory
-hackathon gate (real Gemini/Gemma call, deployed on Cloud Run) is satisfied.
-See `CLAUDE.md` for the authoritative, currently-accurate state, what's
-fixed, what's still open, and what remains before the deadline — this
-section is kept short on purpose so it doesn't go stale again.
+> **Simulated data.** There is no real PLC, CNC or machine network connection. Machine telemetry is seeded, synthetic data with a live random-walk feed on top. The UI says so on purpose. Gemini calls, BigQuery storage and Cloud Run hosting are all real.
 
-## Local-first principle
-Core analytics, charts, event history, calculations, intervention simulation and verification must work locally without cloud access. AI is optional:
-- **Local Gemma:** use a compatible Google Gemma open-weight model and a supported local/browser inference runtime. Confirm model/runtime/browser/hardware support and model terms.
-- **Vertex AI Gemini:** optional cloud mode; requires connectivity and server-side credentials. Explicitly indicate when evidence is sent to cloud.
-- **AI Disabled:** deterministic core continues to work and shows no fabricated AI response.
+---
 
-A website is not automatically offline. For offline use, serve it locally or on the plant LAN, cache static assets if using a PWA, download any local model beforehand, and test with the network disabled.
+## Why it matters
 
-## Core stack
-- Browser-native HTML/CSS/JavaScript UI (or exported UI code audited for deployability)
-- Small Node.js local server/API
-- Synthetic JSON/CSV files and local storage/import-export
-- Deterministic JavaScript analytics and calculations
-- Optional Vertex AI Gemini integration
-- Optional compatible local Gemma runtime
-- Google Cloud Run for the hosted hackathon version
-- Google Cloud Logging for deployed runtime logs
+A machine drawing 6% more power than it should is not an alarm. It is a symptom. Worn bearing, dull tool, bad coolant mix, sensor drift: each costs energy, quality and uptime, and each is fixed differently. On the floor, finding the cause means jumping between trend screens, paper SOPs and tribal memory, and nobody checks afterwards whether the fix actually worked.
 
-Avoid external hosted AI providers and external hosted databases. Keep dependencies minimal.
+AshvaTrace closes the whole loop in one place, and keeps AI honest while doing it.
 
-## Safety and truthfulness
-- Synthetic demonstration only.
-- No real PLC, CNC, machine network or equipment commands.
-- AI outputs are hypotheses, not proof of causation.
-- All costs, carbon and scrap values are estimates based on displayed assumptions.
-- Never expose cloud credentials in browser code.
-- Gemma is an open-weight/open model family under applicable terms; do not assume every model is OSI-certified open source.
+## The core idea: AI proposes, code verifies
 
-## Data files
-Create a seeded dataset of about 2,400 samples over eight simulated hours at 12-second intervals. Keep `scenario_id`, `defect_label` and ground truth in evaluation-only files, never in AI prompts. Include:
-- healthy operation
-- gradual energy/vibration/quality drift
-- tool-change event
-- post-action window
-- at least one unresolved intervention
+```mermaid
+flowchart LR
+    A[Threshold breach<br/>deterministic] --> B[Incident opened]
+    B --> C[Engineer clicks Ask AI]
+    C --> D["Gemini agent<br/>calls tools, reads SOPs<br/>and past incidents"]
+    D --> E[Independent critic<br/>can only lower confidence]
+    E --> F[Grounding check<br/>deterministic: every quoted<br/>number must exist in the data]
+    F --> G[Engineer picks hypothesis<br/>and intervention]
+    G --> H[Gemini predicts outcome]
+    H --> I[Real post-action metrics]
+    I --> J{"verify()<br/>deterministic"}
+    J -->|PASS| K[Incident resolved]
+    J -->|FAIL| L[Hypothesis unconfirmed,<br/>escalate]
+    K --> M[(Audit trail +<br/>institutional memory)]
+    L --> M
+```
 
-Synthetic SOPs:
-- SOP-101 Process Drift Response
-- SOP-102 Tool Inspection
-- SOP-103 Post-Adjustment Verification
+Three places where plain code, not a model, has the last word:
 
-## API (as actually built — see `server/src/routes/`)
-- `GET /health`
-- `GET /api/machines`, `/api/machines/:id`, `/api/machines/:id/status`,
-  `/api/machines/:id/series`, `/api/machines/:id/inspect-tool`
-- `GET /api/incidents`, `/api/incidents/:id`, `/api/incidents/machine?machineId=`
-- `POST /api/incidents/:id/investigate`, `/simulate`, `/verify`
-- `PATCH /api/incidents/:id/status`
-- `GET /api/incidents/:id/audit`, `/similar`
-- `GET /api/alerts`, `/api/alerts/machine/:id`, `POST /api/alerts/:id/acknowledge`
-- `GET /api/analytics/shift-summary`, `/threshold-violations`, `/energy-report`,
-  `/machine-comparison`, `/cost-impact`
-- `POST /api/chat/ask`
-- `GET /api/system/status`
-- `GET/PUT /api/dashboard-layout/:machineId`
-- `GET /api/sse/events` (Server-Sent Events, live machine/alert/incident updates)
+| Guardrail | What it does | Where |
+|---|---|---|
+| **Grounding check** | Every figure, SOP id and past-incident id a hypothesis quotes is checked against what the investigation actually saw. Invented numbers are flagged, confidence is cut, mostly-unsupported hypotheses are dropped. | [server/src/utils/grounding.ts](server/src/utils/grounding.ts) |
+| **Critic can only subtract** | A second, independent Gemini call reviews the hypotheses against the real numbers and SOP text. It may lower confidence. It cannot raise it or rewrite evidence. | `critiqueHypotheses()` in [server/src/utils/ai.ts](server/src/utils/ai.ts) |
+| **Verification is not AI** | After the action, `verify()` passes only if power deviation is under 3%, vibration under 4.5 mm/s and cycle time under 120 s, on real post-action readings. | `verify()` in [server/src/utils/ai.ts](server/src/utils/ai.ts) |
 
-## Local development
-Exact commands depend on the generated source tree. The implementation must document:
-1. required Node.js version
-2. install command
-3. local start command
-4. local URL
-5. synthetic data reset/import/export
-6. optional local Gemma model/runtime installation
-7. optional Vertex AI configuration
-8. offline verification steps
+Chat is guarded the same way: on-topic enforcement is a forced `onTopic` boolean in the model's structured output, checked by code, so a jailbroken reply still cannot escape the fixed refusal text.
 
-## Cloud deployment
-Deploy the web app/API to Google Cloud Run. Use server-side Google Cloud authentication for Vertex AI. Never place credentials in the browser. The hosted Cloud Run app requires connectivity; local-first is the offline deployment path.
+## Gen AI features
 
-## Evaluation
-Test healthy and drift scenarios, missing data, consistent units, unknown evidence/SOP references, AI failure, formulas, rejected interventions, unresolved verification, offline core operation and deployed Cloud Run operation.
+- **Agentic investigation.** Gemini runs a real tool-calling loop: `get_power_window`, `get_vibration_stats`, `get_cycle_time_trend`, `inspect_tool`. The full tool trace is shown to the engineer.
+- **Retrieval grounding.** SOP-101/102/103 are selected by deterministic rules from live signals (not by the model), plus resolved incidents on the same machine: "last time this happened the fix was X and it worked."
+- **Self-critique.** Independent reviewer pass, described above.
+- **Vision AI.** Gemini assesses a tool-wear image (condition, wear level, recommendation).
+- **Outcome simulation.** Gemini predicts, in plain language, what a proposed intervention should do.
+- **Scoped assistant.** Chat over live app state only.
+- **Measured AI cost.** Real token usage from Vertex's `usageMetadata`, converted to dollars and accumulated per incident. Shown in the incident view and Analytics. Not an estimate.
 
-## Official references
-- AI Builder Cup: https://aibuildercup.com/
-- Themes: https://aibuildercup.com/themes.html
-- Gemma overview: https://ai.google.dev/gemma/docs
-- Gemma in browsers: https://ai.google.dev/gemma/docs/integrations/web
-- Gemma runtime options: https://ai.google.dev/gemma/docs/run
-- Gemma on Vertex AI: https://cloud.google.com/vertex-ai/generative-ai/docs/open-models/use-gemma
+## Architecture
+
+```mermaid
+flowchart TB
+    subgraph Browser
+        UI[React + Vite + TypeScript<br/>Monitoring · Machine · Incident · Analytics · Settings]
+    end
+
+    subgraph CloudRun[Google Cloud Run: single container]
+        direction TB
+        API[Express API + static frontend]
+        SIM[Live simulator<br/>3 s tick per machine]
+        THR[Threshold checker<br/>5 s]
+        INC[Incident service]
+        AI[AI layer: ai.ts · grounding.ts<br/>investigationTools.ts · chatService.ts]
+        VER["verify() - pure function"]
+        SSE[SSE broadcaster]
+        API --- INC
+        SIM --> THR --> INC
+        INC --> AI
+        INC --> VER
+        INC --> SSE
+    end
+
+    subgraph GCP[Google Cloud]
+        VTX[Vertex AI: Gemini]
+        BQ[(BigQuery<br/>machines · incidents · alerts<br/>layouts · sop_documents)]
+        PS[Pub/Sub alerts<br/>optional]
+    end
+
+    UI <-->|REST /api/*| API
+    SSE -->|Server-Sent Events| UI
+    AI -->|generateContent + tool calls| VTX
+    INC <--> BQ
+    THR -.-> PS
+```
+
+**Key design choices**
+
+- **One container, one deploy.** Express serves both `/api/*` and the built frontend. The multi-stage [Dockerfile](Dockerfile) builds frontend and backend into one image.
+- **No secrets in the browser.** Gemini is called only from the server using Application Default Credentials. There is no API key anywhere.
+- **BigQuery as the system of record.** Append-only tables; the latest row per id wins on read. State is cached in memory for speed and reloaded on start.
+- **Graceful degradation.** No `GCP_PROJECT_ID`: BigQuery is skipped and the app runs in memory. AI failure never fakes a response. The deterministic core (status, alerts, analytics, verification) keeps working.
+- **Single-instance by design.** Incident/alert de-duplication is in memory, so Cloud Run is pinned to one instance. Scaling out requires moving create-if-absent into BigQuery. See [Known limitations](#known-limitations).
+
+## Process flow in the app
+
+```mermaid
+sequenceDiagram
+    actor E as Engineer
+    participant UI as Frontend
+    participant S as Server
+    participant G as Gemini (Vertex AI)
+    E->>UI: Open Monitoring, click machine
+    UI->>S: GET /api/machines/:id/status, /api/incidents/machine
+    S-->>UI: Status badge, open and closed incidents
+    E->>UI: Open incident, click Ask AI
+    UI->>S: POST /api/incidents/:id/investigate
+    loop agent tool calls
+        S->>G: prompt + SOPs + past incidents
+        G-->>S: call get_power_window / get_vibration_stats / ...
+        S-->>G: real sensor data
+    end
+    S->>G: critique pass
+    S->>S: grounding check
+    S-->>UI: ranked hypotheses, evidence for/against, trace, cost
+    E->>UI: Select hypothesis, propose intervention
+    UI->>S: POST /api/incidents/:id/simulate
+    S->>G: predict outcome
+    S-->>UI: predicted outcome
+    E->>UI: Verify
+    UI->>S: POST /api/incidents/:id/verify
+    S->>S: verify() on live metrics (no AI)
+    S-->>UI: PASS or FAIL + audit entry
+```
+
+**Screens:** Launch · Monitoring (plant table) · Machine (Monitoring, Dashboard, Threshold, Trends) · Machine Incidents (open and closed history, with cause, fix tried and result) · Investigate · Incident (Investigate, Interventions, Verify, Audit) · Analytics (shift summary, energy, cost impact, machine comparison) · Settings (live check of AI, database and alert connections).
+
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Frontend | React 19, Vite, TypeScript, React Router, Recharts |
+| Backend | Node 20, Express, TypeScript |
+| AI | Gemini via Vertex AI REST `generateContent` (function calling + vision) |
+| Data | BigQuery (`@google-cloud/bigquery`), optional Pub/Sub |
+| Realtime | Server-Sent Events |
+| Hosting | Cloud Run, Cloud Build / Docker |
+| Tests | Vitest (server + frontend), Playwright (e2e) |
+
+## Repository layout
+
+```
+.
+├── Dockerfile                  # frontend + backend -> one Cloud Run image
+├── cloudbuild.yaml
+├── AshvaTrace_Pitch_Deck.pdf
+├── TESTING_GUIDE.md            # QA walkthrough of every screen and flow
+├── CLAUDE.md                   # engineering notes and current status
+├── frontend/
+│   ├── src/pages/              # Monitoring, Machine, Incident, Analytics, Settings...
+│   ├── src/components/         # HypothesisList, InvestigationTrace, AuditLog, ...
+│   ├── src/services/api.ts     # typed API client
+│   └── e2e/                    # Playwright specs
+└── server/
+    ├── .env.example            # copy to .env
+    └── src/
+        ├── index.ts            # boot, live simulator, threshold loop
+        ├── routes/ controllers/
+        ├── services/           # incident, machine, alert, analytics, sop, chat, bigquery
+        ├── utils/ai.ts         # Gemini calls, critique, vision, verify()
+        ├── utils/grounding.ts  # deterministic grounding check
+        ├── utils/synthetic.ts  # seeded data generator
+        └── __tests__/          # Vitest suite (AI layer and BigQuery mocked)
+```
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 20+ and npm
+- For real AI and persistence: a Google Cloud project with billing, and the `gcloud` CLI
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/akanthed/AshvaTrace.git
+cd AshvaTrace
+npm --prefix server install --legacy-peer-deps
+npm --prefix frontend install --legacy-peer-deps
+```
+
+### 2. Configure
+
+```bash
+cp server/.env.example server/.env      # Windows PowerShell: Copy-Item server\.env.example server\.env
+```
+
+Edit `server/.env`. See [Configuration](#configuration) for every variable.
+
+### 3. Google Cloud setup (for Gemini + BigQuery)
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT_ID
+
+gcloud services enable aiplatform.googleapis.com bigquery.googleapis.com \
+  run.googleapis.com cloudbuild.googleapis.com pubsub.googleapis.com
+```
+
+Set `GCP_PROJECT_ID` in `server/.env`. The BigQuery dataset and tables are created automatically on first start, and the synthetic SOPs are seeded for you.
+
+Your identity (locally) or the Cloud Run service account (deployed) needs: `roles/aiplatform.user`, `roles/bigquery.dataEditor`, `roles/bigquery.jobUser`, and optionally `roles/pubsub.publisher`.
+
+### 4. Run locally
+
+Two terminals:
+
+```bash
+# Terminal 1: API on :8080
+cd server
+npm run dev
+
+# Terminal 2: UI on :5173 (proxies /api to :8080)
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173. Check wiring at http://localhost:8080/api/system/status or on the in-app **Settings** page.
+
+No GCP credentials? The app still starts with in-memory data and a working deterministic core. AI actions return an error instead of a made-up answer.
+
+### 5. Try the demo flow
+
+1. **Monitoring**: find a machine marked *Action required* (CNC-01, CNC-02, CNC-03, LATHE-01, PRS-01 are live).
+2. Click it, open an **open incident**.
+3. **Investigate** tab, click **Ask AI**. Watch the tool trace, ranked hypotheses, evidence for and against, grounding status and SOP references.
+4. Select a hypothesis, then **Go to Interventions**: propose a fix and read Gemini's predicted outcome.
+5. **Verify**: deterministic PASS or FAIL against live metrics.
+6. **Audit**: every step, timestamped.
+
+### 6. Test
+
+```bash
+cd server   && npm run build && npm test     # Vitest, AI + BigQuery mocked
+cd frontend && npm run build && npm test     # Vitest
+cd frontend && npm run test:e2e              # Playwright (optional)
+```
+
+### 7. Deploy to Cloud Run
+
+From the repo root:
+
+```bash
+gcloud run deploy ashvatrace --source . --region us-central1 --project YOUR_PROJECT_ID \
+  --allow-unauthenticated \
+  --set-env-vars GCP_PROJECT_ID=YOUR_PROJECT_ID,GCP_LOCATION=us-central1,GEMINI_MODEL=gemini-3.8-flash
+
+# Required: state and de-duplication live in process memory
+gcloud run services update ashvatrace --region us-central1 --project YOUR_PROJECT_ID \
+  --min-instances=1 --max-instances=1
+```
+
+Do not set `GOOGLE_APPLICATION_CREDENTIALS` on Cloud Run; the attached service account is used. Verify after deploying:
+
+```bash
+curl https://<your-service-url>/health
+curl https://<your-service-url>/api/system/status
+```
+
+## Configuration
+
+All variables are read by the server. Template: [server/.env.example](server/.env.example).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `8080` | HTTP port (Cloud Run sets it) |
+| `GCP_PROJECT_ID` | none | Enables Vertex AI and BigQuery. Required for AI. |
+| `GCP_LOCATION` | `us-central1` | Vertex AI region |
+| `GOOGLE_APPLICATION_CREDENTIALS` | none | Local key file path. Omit to use `gcloud` ADC. Not used on Cloud Run. |
+| `GEMINI_MODEL` | `gemini-3.8-flash` | Model for all AI calls |
+| `GEMINI_INPUT_USD_PER_1M` | `0.10` | Input price for cost display |
+| `GEMINI_OUTPUT_USD_PER_1M` | `0.40` | Output price for cost display |
+| `BIGQUERY_DATASET` | `ashvatrace` | Dataset name (auto-created) |
+| `PUBSUB_ALERT_TOPIC` | none | Publish alerts to this topic when set |
+| `LIVE_AUTO_INVESTIGATE` | `false` | `true` makes Gemini investigate every new critical incident automatically |
+
+## API
+
+| Area | Endpoints |
+|---|---|
+| System | `GET /health`, `GET /api/system/status` |
+| Machines | `GET/POST /api/machines`, `GET/PUT/DELETE /api/machines/:id`, `GET /api/machines/:id/status`, `/series`, `POST /api/machines/:id/inspect-tool` |
+| Incidents | `GET /api/incidents`, `/api/incidents/machine?machineId=`, `/api/incidents/:id`, `/:id/audit`, `/:id/similar` |
+| Investigation loop | `POST /api/incidents/:id/investigate`, `/simulate`, `/verify`; `PATCH /api/incidents/:id/status` |
+| Alerts | `GET /api/alerts`, `/api/alerts/machine/:id`, `POST /api/alerts/:id/acknowledge` |
+| Analytics | `GET /api/analytics/shift-summary`, `/threshold-violations`, `/energy-report`, `/machine-comparison`, `/cost-impact` |
+| Assistant | `POST /api/chat/ask` |
+| Dashboards | `GET/PUT /api/dashboard-layout/:machineId` |
+| Realtime | `GET /api/sse/events` |
+
+## Safety and honesty
+
+- Synthetic demonstration only. No commands are ever sent to equipment.
+- AI output is hypotheses, not proof of causation, and is labelled that way.
+- Hypotheses appear only when the engineer asks. They are never passed off as automatic findings.
+- Costs and energy figures are estimates from displayed assumptions. AI cost is measured, not estimated.
+- Credentials never reach the browser. Key files and `.env` files are git-ignored.
+
+## Known limitations
+
+- Horizontal scaling is unsafe until incident and alert creation moves to an atomic BigQuery check-and-create. Cloud Run is pinned to a single instance for this reason.
+- Incidents for a machine deleted before cascade-delete existed can be orphaned.
+- Three older assertions in `frontend/src/test/MachineView.test.tsx` are stale.
+- Verification uses fixed global criteria (3% / 4.5 mm/s / 120 s); per-machine criteria are future work.
+
+## Roadmap
+
+Real OPC UA / MQTT ingestion in place of the simulator, per-machine verification criteria, SOP upload and embedding retrieval, CMMS work-order hand-off, multi-instance safe state.
+
+## Documentation
+
+- [TESTING_GUIDE.md](TESTING_GUIDE.md): plain-language QA walkthrough of every screen
+- [CLAUDE.md](CLAUDE.md): engineering notes, fixes and current status
+- [AshvaTrace_Pitch_Deck.pdf](AshvaTrace_Pitch_Deck.pdf): pitch deck
+
+## Hackathon
+
+[AI Builder Cup 2026](https://aibuildercup.com/) · Manufacturing theme. Public repository: https://github.com/akanthed/AshvaTrace

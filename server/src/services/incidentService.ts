@@ -2,6 +2,8 @@ import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, 
 import { getMachineById, getMachineStatus, getMachineSeries, getMachines } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
 import { retrieveSops, getSopById } from './sopService';
+import { createToolExecutor } from './investigationTools';
+import { applyGrounding, buildFactBank, GroundingReport } from '../utils/grounding';
 
 interface Incident {
   id: string;
@@ -27,6 +29,7 @@ interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  grounding?: GroundingReport;
 }
 
 interface SimulationResult {
@@ -729,75 +732,27 @@ export async function investigateIncident(
   // revert to 'open' and record the real failure in the audit log — never
   // substitute canned content for a failed call.
   const machineId = incident.machineId;
-  const toolExecutor = async (name: string, args: Record<string, unknown>): Promise<unknown> => {
-    const series = getMachineSeries(machineId, 0);
-    if (!series) throw new Error(`No series data for machine ${machineId}`);
-    const n = Math.min(Math.max(parseInt(String(args.samples || 60), 10) || 60, 10), 480);
-    const window = series.series.slice(-n);
-
-    switch (name) {
-      case 'get_power_window': {
-        const samples = window.map((s) => ({
-          timestamp: s.timestamp,
-          actualKw: s.actual,
-          expectedKw: s.expected,
-          devPct: Math.round(((s.actual - s.expected) / s.expected) * 1000) / 10,
-        }));
-        // Return a summary + the last 20 samples to keep the context small.
-        const devs = samples.map((s) => s.devPct);
-        return {
-          windowSamples: samples.length,
-          firstDevPct: devs[0],
-          lastDevPct: devs[devs.length - 1],
-          maxDevPct: Math.max(...devs),
-          minDevPct: Math.min(...devs),
-          trend: devs[devs.length - 1] > devs[0] + 1 ? 'rising' : devs[0] - 1 > devs[devs.length - 1] ? 'falling' : 'flat',
-          recentSamples: samples.slice(-20),
-        };
-      }
-      case 'get_vibration_stats': {
-        const vibs = window.map((s) => s.vibration);
-        const half = Math.floor(vibs.length / 2);
-        const firstAvg = vibs.slice(0, half).reduce((a, b) => a + b, 0) / half;
-        const secondAvg = vibs.slice(half).reduce((a, b) => a + b, 0) / (vibs.length - half);
-        return {
-          currentMmS: vibs[vibs.length - 1],
-          minMmS: Math.min(...vibs),
-          maxMmS: Math.max(...vibs),
-          avgMmS: Math.round((vibs.reduce((a, b) => a + b, 0) / vibs.length) * 100) / 100,
-          trendingUp: secondAvg > firstAvg * 1.1,
-          healthyBelowMmS: 3,
-        };
-      }
-      case 'get_cycle_time_trend': {
-        const times = window.map((s) => s.cycleTime);
-        const baseline = times.slice(0, Math.floor(times.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(times.length / 2);
-        const recent = times.slice(-10).reduce((a, b) => a + b, 0) / 10;
-        const ratePerSample = (recent - baseline) / 10;
-        return {
-          currentSec: times[times.length - 1],
-          baselineSec: Math.round(baseline * 10) / 10,
-          recentAvgSec: Math.round(recent * 10) / 10,
-          ratePerSampleSec: Math.round(ratePerSample * 100) / 100,
-          slowingDown: recent > baseline * 1.05,
-        };
-      }
-      case 'inspect_tool': {
-        const wearLevel = Math.min(Math.max(parseInt(String(args.wearLevel || 50), 10) || 50, 0), 100);
-        return inspectToolImage(machineId, wearLevel);
-      }
-      default:
-        throw new Error(`Unknown tool: ${name}`);
-    }
-  };
+  const toolExecutor = createToolExecutor(
+    () => getMachineSeries(machineId, 0)?.series,
+    (wearLevel) => inspectToolImage(machineId, wearLevel)
+  );
 
   let hypotheses;
+  let droppedByGrounding: string[] = [];
   let trace: InvestigationTraceStep[] = [];
   const tracker = new CostTracker();
   try {
     const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents, tracker);
-    hypotheses = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops, tracker);
+    const critiqued = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops, tracker);
     trace = agentic.trace;
+    // Deterministic check (not AI): every figure quoted must exist in the
+    // data this investigation actually saw.
+    const grounded = applyGrounding(
+      critiqued,
+      buildFactBank({ signals: enrichedContext.signals, trace, sops, pastIncidents })
+    );
+    hypotheses = grounded.hypotheses;
+    droppedByGrounding = grounded.dropped;
   } catch (err: any) {
     incident.status = 'open';
     incident.aiCostUsd += tracker.totalCostUsd();
@@ -818,7 +773,7 @@ export async function investigateIncident(
     timestamp: new Date().toISOString(),
     actor: 'ai',
     action: 'hypotheses_generated',
-    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass (AI cost: $${tracker.totalCostUsd().toFixed(4)})`,
+    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass, figures verified by code against sensor data (${hypotheses.reduce((n, h) => n + (h.grounding?.figuresVerified ?? 0), 0)}/${hypotheses.reduce((n, h) => n + (h.grounding?.figuresChecked ?? 0), 0)})${droppedByGrounding.length ? `, dropped as unsupported: ${droppedByGrounding.join('; ')}` : ''} (AI cost: $${tracker.totalCostUsd().toFixed(4)})`,
   });
 
   persistIncident(incident);

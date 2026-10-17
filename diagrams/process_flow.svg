@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#C0392B"/>
+    </marker>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2E8B57"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="760" fill="#FFFFFF"/>
+
+  <text x="65" y="62" font-size="32" font-weight="700" fill="#1b1b1b">AshvaTrace: from drift to proven fix</text>
+  <text x="65" y="94" font-size="18" fill="#555">AI proposes, code verifies. The engineer stays in control.</text>
+
+  <!-- Row 1 connectors -->
+  <g stroke="#555" stroke-width="3" fill="none" marker-end="url(#arrow)">
+    <path d="M315,230 H368"/>
+    <path d="M620,230 H673"/>
+    <path d="M925,230 H978"/>
+    <path d="M1230,230 H1283"/>
+  </g>
+
+  <!-- Row 1 to row 2 elbow -->
+  <path d="M1410,290 V375 H190 V458" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
+
+  <!-- Row 2 connectors -->
+  <g stroke="#555" stroke-width="3" fill="none" marker-end="url(#arrow)">
+    <path d="M315,520 H368"/>
+    <path d="M620,520 H673"/>
+  </g>
+  <path d="M925,520 H978" stroke="#2E8B57" stroke-width="3" fill="none" marker-end="url(#arrowGreen)"/>
+  <text x="951" y="505" font-size="17" font-weight="700" fill="#2E8B57" text-anchor="middle">PASS</text>
+
+  <!-- FAIL loop -->
+  <path d="M800,580 V650 H190 V582" stroke="#C0392B" stroke-width="3" stroke-dasharray="9 6" fill="none" marker-end="url(#arrowRed)"/>
+  <text x="495" y="640" font-size="17" font-weight="700" fill="#C0392B" text-anchor="middle">FAIL: back to the next likely cause</text>
+
+  <!-- Row 1 boxes -->
+  <!-- 1 code -->
+  <rect x="65" y="170" width="250" height="120" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <circle cx="65" cy="170" r="19" fill="#2F5C99"/><text x="65" y="177" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+  <text x="190" y="225" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Machine data</text>
+  <text x="190" y="256" font-size="16" fill="#444" text-anchor="middle">Power, vibration, cycle time</text>
+
+  <!-- 2 code -->
+  <rect x="370" y="170" width="250" height="120" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <circle cx="370" cy="170" r="19" fill="#2F5C99"/><text x="370" y="177" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+  <text x="495" y="225" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Deviation detected</text>
+  <text x="495" y="256" font-size="16" fill="#444" text-anchor="middle">Sustained drift from normal</text>
+
+  <!-- 3 code -->
+  <rect x="675" y="170" width="250" height="120" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <circle cx="675" cy="170" r="19" fill="#2F5C99"/><text x="675" y="177" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+  <text x="800" y="225" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Incident opened</text>
+  <text x="800" y="256" font-size="16" fill="#444" text-anchor="middle">Alert raised for the engineer</text>
+
+  <!-- 4 AI -->
+  <rect x="980" y="170" width="250" height="120" rx="14" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+  <circle cx="980" cy="170" r="19" fill="#F39200"/><text x="980" y="177" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+  <text x="1105" y="225" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">AI gathers evidence</text>
+  <text x="1105" y="256" font-size="16" fill="#444" text-anchor="middle">Starts when engineer clicks Ask AI</text>
+
+  <!-- 5 AI + code -->
+  <rect x="1285" y="170" width="250" height="120" rx="14" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+  <circle cx="1285" cy="170" r="19" fill="#F39200"/><text x="1285" y="177" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+  <text x="1410" y="225" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Review + number check</text>
+  <text x="1410" y="256" font-size="16" fill="#444" text-anchor="middle">Second AI pass + figure check</text>
+
+  <!-- Row 2 boxes -->
+  <!-- 6 AI -->
+  <rect x="65" y="460" width="250" height="120" rx="14" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+  <circle cx="65" cy="460" r="19" fill="#F39200"/><text x="65" y="467" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">6</text>
+  <text x="190" y="515" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Ranked causes</text>
+  <text x="190" y="546" font-size="16" fill="#444" text-anchor="middle">Evidence for and against</text>
+
+  <!-- 7 human -->
+  <rect x="370" y="460" width="250" height="120" rx="14" fill="#E6F4EA" stroke="#2E8B57" stroke-width="3"/>
+  <circle cx="370" cy="460" r="19" fill="#2E8B57"/><text x="370" y="467" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">7</text>
+  <text x="495" y="515" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Engineer approves fix</text>
+  <text x="495" y="546" font-size="16" fill="#444" text-anchor="middle">AI predicts the outcome first</text>
+
+  <!-- 8 code -->
+  <rect x="675" y="460" width="250" height="120" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <circle cx="675" cy="460" r="19" fill="#2F5C99"/><text x="675" y="467" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">8</text>
+  <text x="800" y="515" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Code verifies result</text>
+  <text x="800" y="546" font-size="16" fill="#444" text-anchor="middle">Real data vs. pre-fix baseline</text>
+
+  <!-- 9 end -->
+  <rect x="980" y="460" width="250" height="120" rx="14" fill="#2E8B57" stroke="#2E8B57" stroke-width="3"/>
+  <circle cx="980" cy="460" r="19" fill="#1d5e3a"/><text x="980" y="467" font-size="20" font-weight="700" fill="#fff" text-anchor="middle">9</text>
+  <text x="1105" y="515" font-size="21" font-weight="700" fill="#FFFFFF" text-anchor="middle">Closed and saved</text>
+  <text x="1105" y="546" font-size="16" fill="#E6F4EA" text-anchor="middle">History + audit trail</text>
+
+  <!-- Legend -->
+  <g font-size="17" fill="#1b1b1b">
+    <text x="1285" y="468" font-size="18" font-weight="700">Who does it</text>
+    <rect x="1285" y="485" width="26" height="26" rx="6" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+    <text x="1325" y="505">Plain code (rules)</text>
+    <rect x="1285" y="523" width="26" height="26" rx="6" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+    <text x="1325" y="543">Gemini AI</text>
+    <rect x="1285" y="561" width="26" height="26" rx="6" fill="#E6F4EA" stroke="#2E8B57" stroke-width="3"/>
+    <text x="1325" y="581">Engineer</text>
+  </g>
+
+  <text x="65" y="722" font-size="16" fill="#777">Prototype uses simulated machine data. No real PLC/CNC connection.</text>
+</svg>

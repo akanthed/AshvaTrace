@@ -1,15 +1,41 @@
+# Dependencies & build output
 node_modules/
-.env
-*.log
-ashvatrace-42607ad03e01.json
 server/dist/
 server/public/
+frontend/dist/
+coverage/
+frontend/playwright-report/
+frontend/test-results/
+*.tsbuildinfo
+
+# Secrets — never commit credentials or env files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# GCP service-account key files (e.g. ashvatrace-<keyid>.json)
+ashvatrace-*.json
+*-service-account*.json
+credentials*.json
+
+# Logs & OS/editor noise
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+
+# Local tool caches
 .impeccable/hook.cache.json
 
-# Stale pre-build planning docs superseded by CLAUDE.md; kept locally for
-# history, not tracked going forward.
+# Local-only working files, not part of the shipped product
+scratch/
 TASKS.md
 docs/superpowers/
+AshvaTrace_Project_README.md
+AshvaTrace_Final_Product_and_Implementation_Pack.docx
 
 # Unused Vite scaffolding / dead assets, not referenced anywhere in src/.
 frontend/src/assets/react.svg

@@ -1,0 +1,190 @@
+{
+  "ranAt": "2026-10-17T09:57:43.149Z",
+  "model": "default",
+  "costUsd": 0.0026945999999999997,
+  "summary": {
+    "scenarios": 4,
+    "top1Accuracy": 0.75,
+    "top3Accuracy": 1,
+    "figureGroundingRate": 1,
+    "hypothesesDroppedAsUnsupported": 0
+  },
+  "scenarios": [
+    {
+      "scenarioId": "tool-wear",
+      "top1": false,
+      "top3": true,
+      "hypothesisCount": 3,
+      "figuresChecked": 21,
+      "figuresVerified": 21,
+      "droppedByGrounding": 0,
+      "top": [
+        {
+          "title": "Mechanical Drivetrain or Spindle Bearing Wear",
+          "confidence": 65,
+          "grounding": {
+            "figuresChecked": 8,
+            "figuresVerified": 8,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Cutting Tool Wear or Insert Degradation",
+          "confidence": 50,
+          "grounding": {
+            "figuresChecked": 8,
+            "figuresVerified": 8,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Sensor Calibration Drift or Unscheduled Load Change",
+          "confidence": 20,
+          "grounding": {
+            "figuresChecked": 5,
+            "figuresVerified": 5,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        }
+      ]
+    },
+    {
+      "scenarioId": "spindle-bearing",
+      "top1": true,
+      "top3": true,
+      "hypothesisCount": 3,
+      "figuresChecked": 16,
+      "figuresVerified": 16,
+      "droppedByGrounding": 0,
+      "top": [
+        {
+          "title": "Spindle Bearing or Mechanical Drive Degradation",
+          "confidence": 50,
+          "grounding": {
+            "figuresChecked": 7,
+            "figuresVerified": 7,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Cutting Tool Wear or Insert Chipping",
+          "confidence": 45,
+          "grounding": {
+            "figuresChecked": 5,
+            "figuresVerified": 5,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Sensor Calibration Drift or Electrical Power Meter Fault",
+          "confidence": 15,
+          "grounding": {
+            "figuresChecked": 4,
+            "figuresVerified": 4,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        }
+      ]
+    },
+    {
+      "scenarioId": "calibration-drift",
+      "top1": true,
+      "top3": true,
+      "hypothesisCount": 3,
+      "figuresChecked": 17,
+      "figuresVerified": 17,
+      "droppedByGrounding": 0,
+      "top": [
+        {
+          "title": "Baseline Load Change or Sensor Calibration Offset",
+          "confidence": 50,
+          "grounding": {
+            "figuresChecked": 8,
+            "figuresVerified": 8,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Mechanical Component Wear (Spindle, Belt, or Bearings)",
+          "confidence": 10,
+          "grounding": {
+            "figuresChecked": 6,
+            "figuresVerified": 6,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Severe Tool or Workpiece Binding",
+          "confidence": 5,
+          "grounding": {
+            "figuresChecked": 3,
+            "figuresVerified": 3,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        }
+      ]
+    },
+    {
+      "scenarioId": "tool-change-transient",
+      "top1": true,
+      "top3": true,
+      "hypothesisCount": 3,
+      "figuresChecked": 21,
+      "figuresVerified": 21,
+      "droppedByGrounding": 0,
+      "top": [
+        {
+          "title": "Baseline Calibration Offset or Normal Load Change",
+          "confidence": 50,
+          "grounding": {
+            "figuresChecked": 10,
+            "figuresVerified": 10,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Early Stage Mechanical Wear",
+          "confidence": 20,
+          "grounding": {
+            "figuresChecked": 7,
+            "figuresVerified": 7,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        },
+        {
+          "title": "Tool Wear or Degradation",
+          "confidence": 10,
+          "grounding": {
+            "figuresChecked": 4,
+            "figuresVerified": 4,
+            "unsupportedFigures": [],
+            "badReferences": [],
+            "status": "verified"
+          }
+        }
+      ]
+    }
+  ]
+}

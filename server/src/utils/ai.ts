@@ -1,5 +1,6 @@
 import { GoogleAuth } from 'google-auth-library';
 import https from 'https';
+import type { GroundingReport } from './grounding';
 
 // Vertex AI (GCP project billing) — no separate Gemini API key needed.
 // Read lazily (not at module load) so dotenv.config() in index.ts — which runs
@@ -198,6 +199,8 @@ export interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  // Set by the deterministic grounding check (utils/grounding.ts), never by the model.
+  grounding?: GroundingReport;
 }
 
 export interface SimulationResult {
@@ -257,7 +260,7 @@ ${formatSops(sops)}
 Generate 3-5 ranked hypotheses for the root cause of this deviation, grounded specifically in the numbers above and in the SOP excerpts. For each hypothesis:
 - title: short, specific name for the failure mode
 - confidence: 0-100, calibrated so multiple plausible causes don't all score above 80
-- evidenceFor: 2-3 bullet points that cite the actual numbers above, written in plain words a shift supervisor with no engineering background would understand (e.g. "power is running 8% above normal and has been climbing for the last hour" instead of "devPct exhibits monotonic drift")
+- evidenceFor: 2-3 bullet points that cite the actual numbers above (quote figures exactly as given; never compute or invent a figure), written in plain words a shift supervisor with no engineering background would understand (e.g. "power is running 8% above normal and has been climbing for the last hour" instead of "devPct exhibits monotonic drift")
 - evidenceAgainst: 1-2 bullet points, same plain-language style, explaining what would argue against this cause
 - sopRef: the SOP id this hypothesis follows (e.g. "SOP-101"), or null if none of the excerpts apply
 
@@ -409,7 +412,7 @@ ${pastIncidentsSection}
 For each hypothesis:
 - title: short, specific name for the failure mode
 - confidence: 0-100, calibrated so multiple plausible causes don't all score above 80
-- evidenceFor: 2-3 bullet points citing the ACTUAL numbers from the tool results, in plain words a shift supervisor would understand
+- evidenceFor: 2-3 bullet points citing the ACTUAL numbers from the tool results, quoted exactly as returned (never compute, estimate, or invent a figure — every number you write is checked by code against the tool results and dropped if it cannot be found), in plain words a shift supervisor would understand
 - evidenceAgainst: 1-2 bullet points, same plain-language style
 - sopRef: the SOP id this hypothesis follows (e.g. "SOP-101"), or null if none apply
 

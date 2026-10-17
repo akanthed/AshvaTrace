@@ -11,7 +11,8 @@
     "copy:frontend": "node -e \"const fs=require('fs');fs.rmSync('public',{recursive:true,force:true});fs.cpSync('../frontend/dist','public',{recursive:true});\"",
     "build:all": "npm run build:frontend && npm run copy:frontend && npm run build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "eval": "ts-node src/eval/run.ts"
   },
   "dependencies": {
     "@google-cloud/bigquery": "^9.3.0",
@@ -22,8 +23,7 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.7",
     "express": "^4.22.3",
-    "google-auth-library": "^11.3.0",
-    "googleapis": "^185.0.0"
+    "google-auth-library": "^11.3.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

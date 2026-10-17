@@ -1,0 +1,150 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="940" viewBox="0 0 1600 940" font-family="'Segoe UI', Arial, sans-serif">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <rect width="1600" height="940" fill="#FFFFFF"/>
+
+  <text x="40" y="58" font-size="32" font-weight="700" fill="#1b1b1b">AshvaTrace architecture</text>
+  <text x="40" y="92" font-size="18" fill="#555">Gemini proposes. Plain code checks the evidence and verifies the outcome. Everything runs on Google Cloud.</text>
+
+  <!-- Engineer column -->
+  <rect x="40" y="140" width="260" height="500" rx="14" fill="#E6F4EA" stroke="#2E8B57" stroke-width="3"/>
+  <text x="170" y="176" font-size="21" font-weight="700" fill="#1b1b1b" text-anchor="middle">Engineer</text>
+  <text x="170" y="200" font-size="14" fill="#444" text-anchor="middle">React + Vite web app</text>
+  <g font-size="15" fill="#1b1b1b" text-anchor="middle">
+    <rect x="60" y="222" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="245">Monitoring</text>
+    <rect x="60" y="264" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="287">Machine dashboards</text>
+    <rect x="60" y="306" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="329">Incidents</text>
+    <rect x="60" y="348" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="371">Investigate (Ask AI)</text>
+    <rect x="60" y="390" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="413">Interventions</text>
+    <rect x="60" y="432" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="455">Verify</text>
+    <rect x="60" y="474" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="497">Audit trail</text>
+    <rect x="60" y="516" width="220" height="34" rx="8" fill="#fff" stroke="#2E8B57" stroke-width="1.5"/><text x="170" y="539">Analytics</text>
+  </g>
+  <text x="170" y="580" font-size="13" fill="#444" text-anchor="middle">No AI key in the browser.</text>
+  <text x="170" y="600" font-size="13" fill="#444" text-anchor="middle">All AI calls stay on the server.</text>
+  <circle cx="60" cy="390" r="14" fill="#2E8B57"/><text x="60" y="396" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+
+  <!-- Eval harness -->
+  <rect x="40" y="670" width="260" height="110" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3" stroke-dasharray="8 5"/>
+  <text x="170" y="704" font-size="18" font-weight="700" fill="#1b1b1b" text-anchor="middle">Eval harness (offline)</text>
+  <text x="170" y="730" font-size="14" fill="#444" text-anchor="middle">Replays 4 known faults</text>
+  <text x="170" y="750" font-size="14" fill="#444" text-anchor="middle">Scores accuracy with code,</text>
+  <text x="170" y="770" font-size="14" fill="#444" text-anchor="middle">no AI judge</text>
+
+  <!-- Cloud Run container -->
+  <rect x="360" y="130" width="820" height="680" rx="16" fill="#FAFAFA" stroke="#8A8F98" stroke-width="3" stroke-dasharray="12 7"/>
+  <text x="380" y="158" font-size="16" font-weight="700" fill="#555">GOOGLE CLOUD RUN  (one container: web app + API)</text>
+
+  <!-- API bar -->
+  <rect x="390" y="172" width="760" height="56" rx="12" fill="#ECECEC" stroke="#8A8F98" stroke-width="2.5"/>
+  <!-- UI <-> API -->
+  <path d="M302,200 H388" stroke="#555" stroke-width="3" fill="none" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="770" y="206" font-size="18" font-weight="700" fill="#1b1b1b" text-anchor="middle">Node.js + Express API   (/api/*)</text>
+  <path d="M565,228 V268" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arr)"/>
+  <path d="M975,228 V268" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arr)"/>
+
+  <!-- Deterministic core -->
+  <rect x="390" y="270" width="350" height="370" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <text x="565" y="304" font-size="19" font-weight="700" fill="#1b1b1b" text-anchor="middle">Deterministic core (plain code)</text>
+  <g font-size="16" fill="#1b1b1b" text-anchor="middle">
+    <rect x="410" y="330" width="310" height="52" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="565" y="362">Live data loop (every 3 s)</text>
+    <rect x="410" y="390" width="310" height="52" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="565" y="422">Threshold status check</text>
+    <rect x="410" y="450" width="310" height="52" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="565" y="482">Incident + alert manager</text>
+    <rect x="410" y="510" width="310" height="52" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="565" y="542">Energy and cost analytics</text>
+    <rect x="410" y="570" width="310" height="52" rx="10" fill="#2F5C99" stroke="#2F5C99" stroke-width="1.5"/><text x="565" y="602" font-weight="700" fill="#fff">VERIFY: PASS / FAIL</text>
+  </g>
+  <circle cx="410" cy="330" r="14" fill="#2F5C99"/><text x="410" y="336" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+  <circle cx="410" cy="570" r="14" fill="#1d3f6e"/><text x="410" y="576" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+
+  <!-- AI layer -->
+  <rect x="800" y="270" width="350" height="370" rx="14" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+  <text x="975" y="304" font-size="19" font-weight="700" fill="#1b1b1b" text-anchor="middle">AI layer (Gemini)</text>
+  <g text-anchor="middle" fill="#1b1b1b">
+    <rect x="820" y="330" width="310" height="52" rx="10" fill="#fff" stroke="#F39200" stroke-width="1.5"/>
+    <text x="975" y="352" font-size="16" font-weight="700">Agentic investigation</text><text x="975" y="371" font-size="13" fill="#555">Gemini calls 4 tools to pull real data</text>
+    <rect x="820" y="390" width="310" height="52" rx="10" fill="#fff" stroke="#F39200" stroke-width="1.5"/>
+    <text x="975" y="412" font-size="16" font-weight="700">Independent critique</text><text x="975" y="431" font-size="13" fill="#555">Second pass can only lower confidence</text>
+    <rect x="820" y="450" width="310" height="52" rx="10" fill="#fff" stroke="#F39200" stroke-width="1.5"/>
+    <text x="975" y="472" font-size="16" font-weight="700">Vision tool-wear check</text><text x="975" y="491" font-size="13" fill="#555">Gemini assesses a tool image</text>
+    <rect x="820" y="510" width="310" height="52" rx="10" fill="#fff" stroke="#F39200" stroke-width="1.5"/>
+    <text x="975" y="532" font-size="16" font-weight="700">Fix outcome prediction</text><text x="975" y="551" font-size="13" fill="#555">Plain-language forecast of the fix</text>
+    <rect x="820" y="570" width="310" height="52" rx="10" fill="#fff" stroke="#F39200" stroke-width="1.5"/>
+    <text x="975" y="592" font-size="16" font-weight="700">Scoped chat assistant</text><text x="975" y="611" font-size="13" fill="#555">Code enforces on-topic answers</text>
+  </g>
+  <circle cx="820" cy="330" r="14" fill="#F39200"/><text x="820" y="336" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+  <circle cx="820" cy="390" r="14" fill="#F39200"/><text x="820" y="396" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+
+  <!-- AI <-> core -->
+  <path d="M742,450 H798" stroke="#555" stroke-width="3" fill="none" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="770" y="434" font-size="11" fill="#555" text-anchor="middle">real</text>
+  <text x="770" y="472" font-size="11" fill="#555" text-anchor="middle">data</text>
+
+  <!-- Trust layer -->
+  <rect x="800" y="660" width="350" height="110" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <text x="975" y="686" font-size="17" font-weight="700" fill="#1b1b1b" text-anchor="middle">Trust layer (plain code)</text>
+  <g text-anchor="middle" fill="#1b1b1b">
+    <rect x="815" y="698" width="155" height="58" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/>
+    <text x="892" y="722" font-size="15" font-weight="700">Grounding check</text><text x="892" y="742" font-size="12" fill="#555">figures vs sensor data</text>
+    <rect x="980" y="698" width="155" height="58" rx="10" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/>
+    <text x="1057" y="722" font-size="15" font-weight="700">Cost tracker</text><text x="1057" y="742" font-size="12" fill="#555">real $ per incident</text>
+  </g>
+  <circle cx="815" cy="698" r="14" fill="#2F5C99"/><text x="815" y="704" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+  <path d="M975,642 V658" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arr)"/>
+
+  <!-- Vertex AI -->
+  <rect x="1260" y="140" width="300" height="270" rx="14" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/>
+  <text x="1410" y="182" font-size="20" font-weight="700" fill="#1b1b1b" text-anchor="middle">Google Vertex AI</text>
+  <text x="1410" y="236" font-size="40" font-weight="700" fill="#F39200" text-anchor="middle">Gemini</text>
+  <text x="1410" y="276" font-size="15" fill="#444" text-anchor="middle">Tool calling</text>
+  <text x="1410" y="299" font-size="15" fill="#444" text-anchor="middle">Vision (image understanding)</text>
+  <text x="1410" y="322" font-size="15" fill="#444" text-anchor="middle">Structured JSON output</text>
+  <text x="1410" y="362" font-size="13" fill="#666" text-anchor="middle">Server-side service credentials,</text>
+  <text x="1410" y="381" font-size="13" fill="#666" text-anchor="middle">no API key exposed</text>
+  <path d="M1152,330 H1258" stroke="#555" stroke-width="3" fill="none" marker-start="url(#arr)" marker-end="url(#arr)"/>
+
+  <!-- BigQuery -->
+  <rect x="1260" y="450" width="300" height="270" rx="14" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/>
+  <text x="1410" y="492" font-size="20" font-weight="700" fill="#1b1b1b" text-anchor="middle">BigQuery</text>
+  <text x="1410" y="516" font-size="13" fill="#666" text-anchor="middle">Persistent store, append-only history</text>
+  <g font-size="15" fill="#1b1b1b" text-anchor="middle">
+    <rect x="1290" y="536" width="240" height="30" rx="8" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="1410" y="557">Machines</text>
+    <rect x="1290" y="574" width="240" height="30" rx="8" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="1410" y="595">Incidents + AI cost</text>
+    <rect x="1290" y="612" width="240" height="30" rx="8" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="1410" y="633">Alerts + audit trail</text>
+    <rect x="1290" y="650" width="240" height="30" rx="8" fill="#fff" stroke="#2F5C99" stroke-width="1.5"/><text x="1410" y="671">Dashboards + SOP documents</text>
+  </g>
+  <!-- trust layer to BigQuery -->
+  <path d="M1152,715 H1258" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arr)"/>
+  <!-- core to BigQuery (route under the AI layer) -->
+  <path d="M565,642 V790 H1410 V722" stroke="#555" stroke-width="3" fill="none" marker-end="url(#arr)"/>
+  <text x="685" y="780" font-size="13" fill="#555" text-anchor="middle">save incidents, alerts and history</text>
+
+  <!-- Legend -->
+  <g font-size="15" fill="#1b1b1b">
+    <rect x="1130" y="44" width="22" height="22" rx="5" fill="#E8EEF6" stroke="#2F5C99" stroke-width="3"/><text x="1162" y="62">Plain code</text>
+    <rect x="1262" y="44" width="22" height="22" rx="5" fill="#FFF1DC" stroke="#F39200" stroke-width="3"/><text x="1294" y="62">Gemini AI</text>
+    <rect x="1390" y="44" width="22" height="22" rx="5" fill="#E6F4EA" stroke="#2E8B57" stroke-width="3"/><text x="1422" y="62">Engineer</text>
+  </g>
+
+  <!-- Story strip -->
+  <rect x="40" y="835" width="1520" height="80" rx="14" fill="#F4F4F6" stroke="#D5D7DC" stroke-width="2"/>
+  <g font-size="14" fill="#444">
+    <circle cx="82" cy="875" r="15" fill="#2F5C99"/><text x="82" y="881" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+    <text x="106" y="870" font-weight="700" fill="#1b1b1b" font-size="16">Detect</text><text x="106" y="892">Data loop spots drift, opens incident</text>
+
+    <circle cx="392" cy="875" r="15" fill="#F39200"/><text x="392" y="881" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+    <text x="416" y="870" font-weight="700" fill="#1b1b1b" font-size="16">Investigate</text><text x="416" y="892">Gemini calls tools on real data</text>
+
+    <circle cx="702" cy="875" r="15" fill="#2F5C99"/><text x="702" y="881" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+    <text x="726" y="870" font-weight="700" fill="#1b1b1b" font-size="16">Challenge</text><text x="726" y="892">Critique + grounding lower confidence</text>
+
+    <circle cx="1012" cy="875" r="15" fill="#2E8B57"/><text x="1012" y="881" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">4</text>
+    <text x="1036" y="870" font-weight="700" fill="#1b1b1b" font-size="16">Approve</text><text x="1036" y="892">Engineer picks and approves a fix</text>
+
+    <circle cx="1322" cy="875" r="15" fill="#1d3f6e"/><text x="1322" y="881" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">5</text>
+    <text x="1346" y="870" font-weight="700" fill="#1b1b1b" font-size="16">Verify</text><text x="1346" y="892">Code returns PASS or FAIL</text>
+  </g>
+</svg>

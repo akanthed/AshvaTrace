@@ -47,6 +47,15 @@ export interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  grounding?: Grounding;
+}
+
+export interface Grounding {
+  figuresChecked: number;
+  figuresVerified: number;
+  unsupportedFigures: string[];
+  badReferences: string[];
+  status: 'verified' | 'partial' | 'unverified';
 }
 
 export interface InvestigationTraceStep {

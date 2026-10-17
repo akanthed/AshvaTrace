@@ -105,6 +105,19 @@ very first static-mockup phase and is no longer accurate.
     per incident (`aiCostUsd`), persists to BigQuery, shows as a quiet line
     in the Incident view and a tile in Analytics. This is measured cost,
     not an estimate.
+  - **Grounding check** (`utils/grounding.ts`, deterministic code): after the
+    critique pass, every figure a hypothesis quotes is matched against the
+    data the investigation actually saw (live signals, tool results, SOP text,
+    past incidents); SOP/incident references are checked to exist. Confidence
+    can only be lowered, invented SOP refs are removed, and mostly-unsupported
+    hypotheses are dropped (never all of them). The result is stored on each
+    hypothesis as `grounding` and shown in the UI as "N of M figures match the
+    sensor data".
+  - **Eval harness** (`server/src/eval/`, `npm run eval` in `server/`): replays
+    4 scripted faults with known root causes through the real pipeline and
+    scores top-1/top-3 accuracy and figure-grounding rate with plain code (no
+    AI judge). Writes `server/eval-results.json`. Live runs vary (top-1 50–75%,
+    top-3 100%, figures verified 100% in two runs) — quote real numbers only.
   - `verify()` is explicitly **not** AI — deterministic pass/fail against
     real post-action metrics. Preserve this split.
 - **Deterministic core**: threshold-based status (`normal`/`warning`/
@@ -123,10 +136,13 @@ very first static-mockup phase and is no longer accurate.
   Superseded by the real app; kept only as a historical reference for the
   visual language (see Design conventions below). Not part of the shipped
   product.
-- `AshvaTrace_Project_README.md`, `AshvaTrace_Final_Product_and_Implementation_Pack.docx`
-  — original pre-build spec documents. Background/historical reference
-  only; this file is the current source of truth.
-- `scratch/` — scratch files, not part of the shipped product.
+- `AshvaTrace_Project_README.md`, `AshvaTrace_Final_Product_and_Implementation_Pack.docx`,
+  `scratch/` — original pre-build spec documents and pitch-deck generator
+  scripts. Local-only (gitignored, not in the public repo); this file is the
+  current source of truth.
+- Deploys use `gcloud run deploy` with the developer's own gcloud login —
+  no service-account key file is needed or tracked. Never commit one; the
+  `.gitignore` blocks `ashvatrace-*.json` and `.env*`.
 
 ## Known issues / recent fixes (keep this section current)
 
