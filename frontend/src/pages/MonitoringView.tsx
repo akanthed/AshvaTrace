@@ -18,9 +18,9 @@ type PlantTabKey = 'monitoring' | 'dashboard' | 'threshold' | 'trends' | 'plant'
 const PLANT_TABS: Array<[PlantTabKey, string, string]> = [
   ['monitoring', 'Monitoring', 'M22 12h-4l-3 9L9 3l-3 9H2'],
   ['dashboard', 'Dashboard', 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z'],
-  ['threshold', 'Threshold', 'M12 20V10M18 20V4M6 20v-4'],
+  ['threshold', 'Limits', 'M12 20V10M18 20V4M6 20v-4'],
   ['trends', 'Trends', 'M3 3v18h18M7 16l4-4 4 4 5-6'],
-  ['plant', 'Plant', 'M2 20h20M4 20V8l4-4 4 4v12M14 20V12l6-4v12'],
+  ['plant', 'Machines', 'M2 20h20M4 20V8l4-4 4 4v12M14 20V12l6-4v12'],
 ];
 
 function isPlantTabKey(value: string | null): value is PlantTabKey {
@@ -34,7 +34,7 @@ function MachinePicker({ machines, statuses, tab }: { machines: Machine[]; statu
     <div className="panel">
       <header>
         <h3>Pick a machine</h3>
-        <span className="prov">{PLANT_TABS.find(([k]) => k === tab)?.[1]} is per-machine — choose one</span>
+        <span className="prov">{PLANT_TABS.find(([k]) => k === tab)?.[1]} works one machine at a time — choose one</span>
       </header>
       <div className="tbl-wrap">
         <table className="mtable">
@@ -46,7 +46,7 @@ function MachinePicker({ machines, statuses, tab }: { machines: Machine[]; statu
                   <br />
                   <small>{m.name}</small>
                 </td>
-                <td>{statuses.get(m.id)?.status ?? 'normal'}</td>
+                <td>{({ critical: 'Action required', warning: 'Watch' } as Record<string, string>)[statuses.get(m.id)?.status ?? 'normal'] ?? 'Normal'}</td>
               </tr>
             ))}
           </tbody>
@@ -87,7 +87,7 @@ export default function MonitoringView({ machineId }: Props) {
   }
 
   if (loading) {
-    return <LoadingSpinner label="Loading monitoring data…" />;
+    return <LoadingSpinner label="Loading machine data…" />;
   }
 
   const machines = machineId ? allMachines.filter((m) => m.id === machineId) : allMachines;
@@ -97,7 +97,11 @@ export default function MonitoringView({ machineId }: Props) {
   const normal = machines.filter((m) => statuses.get(m.id)?.status === 'normal').length;
   const excess = machines.filter((m) => (statuses.get(m.id)?.devPct ?? 0) > 5).length;
 
-  const criticalAlert = alerts.find((a) => a.severity === 'critical' && (!machineId || a.machineId === machineId));
+  // Only banner a machine that is critical RIGHT NOW; alerts are a log and can
+  // outlive the reading that caused them.
+  const criticalAlert = alerts.find(
+    (a) => a.severity === 'critical' && (!machineId || a.machineId === machineId) && statuses.get(a.machineId)?.status === 'critical'
+  );
   const criticalMachine = criticalAlert
     ? machines.find((m) => m.id === criticalAlert.machineId)
     : undefined;
@@ -105,7 +109,7 @@ export default function MonitoringView({ machineId }: Props) {
   // machine's current live deviation instead so the banner matches the table.
   const criticalLiveDev = criticalAlert ? statuses.get(criticalAlert.machineId)?.devPct : undefined;
   const criticalMessage = criticalAlert && criticalLiveDev !== undefined
-    ? `CRITICAL: ${criticalMachine?.name ?? criticalAlert.machineId} power deviation ${criticalLiveDev}% exceeds critical threshold`
+    ? `Action required: power is ${criticalLiveDev}% off normal — past the critical limit`
     : criticalAlert?.message;
 
   // Top-level /monitoring route (no machineId prop): plant-wide tabs. The
@@ -146,7 +150,7 @@ export default function MonitoringView({ machineId }: Props) {
                 <b>{normal}</b>
               </div>
               <div className="count">
-                <small>Excess energy</small>
+                <small>Using extra power</small>
                 <b>{excess}</b>
               </div>
             </div>
@@ -176,7 +180,7 @@ export default function MonitoringView({ machineId }: Props) {
                 <h3>Monitoring</h3>
                 <div className="sp" />
                 <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                  {machines.length} machine{machines.length === 1 ? '' : 's'} · {critical} critical · {warning} warning · {normal} normal
+                  {machines.length} machine{machines.length === 1 ? '' : 's'} · {critical} need action · {warning} to watch · {normal} normal
                 </span>
               </header>
               <div className="body">
@@ -228,39 +232,39 @@ export default function MonitoringView({ machineId }: Props) {
 
       <div className="panel">
         <header>
-          <h3>Tool Inspection (Vision AI)</h3>
+          <h3>Cutting tool check (camera AI)</h3>
           <div className="sp" />
           <button className="primary" onClick={runInspection} disabled={inspecting}>
-            {inspecting ? 'Analyzing…' : 'Run Inspection'}
+            {inspecting ? 'Checking…' : 'Check the tool'}
           </button>
         </header>
         <div className="body">
-          {inspecting && <LoadingSpinner label="Running Vision AI analysis on tool image…" full={false} />}
+          {inspecting && <LoadingSpinner label="Looking at the tool picture…" full={false} />}
           {!inspecting && !inspection && (
             <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-              Run a Vision AI inspection to analyze the machine's cutting tool condition from a synthetic inspection image.
+              Press the button and the AI will look at a picture of the cutting tool and say how worn it is. The picture is simulated for this demo.
             </p>
           )}
           {inspection && (
             <div>
               <div style={{ display: 'flex', gap: 16, marginBottom: 12 }}>
                 <div className="count">
-                  <small>Condition</small>
+                  <small>Tool condition</small>
                   <b style={{ color: inspection.condition === 'good' ? 'var(--ok)' : inspection.condition === 'worn' ? 'var(--warn)' : 'var(--crit)' }}>
                     {inspection.condition.toUpperCase()}
                   </b>
                 </div>
                 <div className="count">
-                  <small>Wear</small>
+                  <small>Worn</small>
                   <b>{inspection.wearPct}%</b>
                 </div>
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-                <strong>Observations:</strong>
+                <strong>What it sees:</strong>
                 <ul style={{ margin: '4px 0 8px 16px' }}>
                   {inspection.observations.map((o, i) => <li key={i}>{o}</li>)}
                 </ul>
-                <strong>Recommendation:</strong> {inspection.recommendation}
+                <strong>What to do:</strong> {inspection.recommendation}
               </div>
             </div>
           )}

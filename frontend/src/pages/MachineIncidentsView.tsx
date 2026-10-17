@@ -17,7 +17,7 @@ function IncidentRow({ inc, onClick }: { inc: Incident; onClick: () => void }) {
         <span className={`pill ${isOpen ? 'crit' : 'ok'}`} style={{ fontSize: 11 }}>
           {isOpen ? 'Open' : 'Resolved'}
         </span>
-        <span className="pill info" style={{ fontSize: 11 }}>{inc.devPct}% dev</span>
+        <span className="pill info" style={{ fontSize: 11 }}>{inc.devPct}% off normal</span>
         <span style={{ color: 'var(--muted)', fontSize: 11, marginLeft: 'auto' }}>
           {new Date(inc.detectedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </span>
@@ -38,7 +38,7 @@ function IncidentRow({ inc, onClick }: { inc: Incident; onClick: () => void }) {
           )}
           {inc.verification && (
             <span style={{ color: inc.verification.passed ? 'var(--ok)' : 'var(--crit)' }}>
-              {inc.verification.passed ? '✓ Verified — fix worked' : '✗ Fix did not work'}
+              {inc.verification.passed ? '✓ Fix worked' : '✗ Fix did not work'}
             </span>
           )}
         </div>
@@ -66,7 +66,7 @@ export function MachineIncidentsView() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <LoadingSpinner label="Loading incidents…" />;
+  if (loading) return <LoadingSpinner label="Loading problems…" />;
 
   const open = incidents.filter((i) => OPEN_STATUSES.includes(i.status));
   const closed = incidents.filter((i) => !OPEN_STATUSES.includes(i.status));
@@ -77,19 +77,19 @@ export function MachineIncidentsView() {
       <div className="inc-head">
         <h1>{machineName}</h1>
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-          {open.length} open · {closed.length} closed
+          {open.length} open · {closed.length} solved
         </span>
       </div>
 
       <section className="panel">
         <header>
-          <h3>Open incidents</h3>
+          <h3>Open problems</h3>
         </header>
         <div className="body" style={{ display: 'grid', gap: 8 }}>
           {open.length === 0 ? (
             <div className="empty">
-              <b style={{ color: 'var(--fg)' }}>No open incidents</b>
-              Nothing needs investigation right now.
+              <b style={{ color: 'var(--fg)' }}>No open problems</b>
+              Nothing needs attention right now.
             </div>
           ) : (
             open.map((inc) => (
@@ -101,13 +101,13 @@ export function MachineIncidentsView() {
 
       <section className="panel" style={{ marginTop: 16 }}>
         <header>
-          <h3>Closed incidents</h3>
+          <h3>Solved problems</h3>
         </header>
         <div className="body" style={{ display: 'grid', gap: 8 }}>
           {closed.length === 0 ? (
             <div className="empty">
-              <b style={{ color: 'var(--fg)' }}>No closed incidents</b>
-              This machine has no incident history yet.
+              <b style={{ color: 'var(--fg)' }}>No solved problems</b>
+              This machine has no past problems yet.
             </div>
           ) : (
             closed.map((inc) => (

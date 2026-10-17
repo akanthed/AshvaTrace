@@ -11,10 +11,10 @@ interface Props {
 type FieldKey = keyof Thresholds;
 
 const ROWS: Array<[FieldKey, string]> = [
-  ['upperAlarm', 'Upper alarm'],
-  ['upperWarning', 'Upper warning'],
-  ['lowerWarning', 'Lower warning'],
-  ['lowerAlarm', 'Lower alarm'],
+  ['upperAlarm', 'Action required — too high'],
+  ['upperWarning', 'Watch — too high'],
+  ['lowerWarning', 'Watch — too low'],
+  ['lowerAlarm', 'Action required — too low'],
 ];
 
 export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
@@ -28,11 +28,11 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
   const handleSave = async () => {
     setError(null);
     if (form.upperAlarm < form.upperWarning) {
-      setError('Upper alarm must be at or above upper warning');
+      setError("The 'Action required' high limit must be at least as high as the 'Watch' high limit");
       return;
     }
     if (form.lowerAlarm > form.lowerWarning) {
-      setError('Lower alarm must be at or below lower warning');
+      setError("The 'Action required' low limit must be at or below the 'Watch' low limit");
       return;
     }
     setSaving(true);
@@ -42,7 +42,7 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save thresholds');
+      setError(err instanceof Error ? err.message : 'Could not save the limits');
     } finally {
       setSaving(false);
     }
@@ -51,9 +51,9 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
   return (
     <section className="panel">
       <header>
-        <h3>Threshold · {machineId}</h3>
+        <h3>Limits · {machineId}</h3>
         <div className="sp" />
-        <span className="prov">Power deviation limits that decide this machine's status</span>
+        <span className="prov">How far from normal power can go before the status changes</span>
       </header>
       <div className="body" style={{ display: 'grid', gap: 16 }}>
         {error && <div className="prov" style={{ color: 'var(--crit)' }}>{error}</div>}
@@ -61,15 +61,15 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
           <table className="thr">
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Alarm type</th>
-                <th>Threshold value</th>
+                <th>Kind</th>
+                <th>Status it triggers</th>
+                <th>When power is this far from normal</th>
               </tr>
             </thead>
             <tbody>
               {ROWS.map(([key, label]) => (
                 <tr key={key}>
-                  <td className="mono">Static threshold</td>
+                  <td className="mono">Fixed limit</td>
                   <td>{label}</td>
                   <td>
                     <input
@@ -91,8 +91,7 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
           {saved && <span className="prov" style={{ color: 'var(--ok)' }}>Saved</span>}
         </div>
         <p className="prov">
-          Deviation at or beyond an alarm limit turns the status red and raises a critical alert. At or beyond a
-          warning limit it turns yellow and raises a warning alert. This is plain math, not AI.
+          If power goes past an 'Action required' limit, the machine turns red and a critical alert is raised. Past a 'Watch' limit it turns yellow. This is simple arithmetic, not AI.
         </p>
       </div>
     </section>

@@ -136,6 +136,8 @@ function clearAlertsForResolvedIncidents(): void {
   }
 }
 
+let alertSeq = 0;
+
 // Check all machines for threshold violations and create alerts
 export function checkThresholds(): Alert[] {
   clearAlertsForResolvedIncidents();
@@ -153,7 +155,8 @@ export function checkThresholds(): Alert[] {
       );
       if (existing) continue;
 
-      const id = `ALR-${Date.now().toString(36).toUpperCase()}-${m.id}`;
+      // Counter suffix: two alerts for one machine in the same millisecond must not share an id.
+      const id = `ALR-${Date.now().toString(36).toUpperCase()}${(alertSeq++).toString(36).toUpperCase()}-${m.id}`;
       const alert: Alert = {
         id,
         machineId: m.id,
@@ -162,8 +165,8 @@ export function checkThresholds(): Alert[] {
         devPct: status.devPct,
         message:
           status.status === 'critical'
-            ? `CRITICAL: ${m.name} power deviation ${status.devPct}% exceeds critical threshold`
-            : `WARNING: ${m.name} power deviation ${status.devPct}% exceeds warning threshold`,
+            ? `Action required: ${m.name} is using ${Math.abs(status.devPct)}% ${status.devPct >= 0 ? 'more' : 'less'} power than normal`
+            : `Watch: ${m.name} is using ${Math.abs(status.devPct)}% ${status.devPct >= 0 ? 'more' : 'less'} power than normal`,
         timestamp: new Date().toISOString(),
         acknowledged: false,
       };

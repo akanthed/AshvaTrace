@@ -1,8 +1,9 @@
 import { investigate, critiqueHypotheses, simulate, verify, investigateAgentic, inspectToolImage, InvestigationTraceStep, CostTracker } from '../utils/ai';
-import { getMachineById, getMachineStatus, getMachineSeries, getMachines } from './machineService';
+import { getMachineById, getMachineStatus, getMachineSeries, getMachines, applySimulatedFix, resetMachineConditions } from './machineService';
 import { upsertIncident, queryIncidents, IncidentRow } from './bigqueryService';
 import { retrieveSops, getSopById } from './sopService';
 import { createToolExecutor } from './investigationTools';
+import { broadcastEvent } from '../routes/sseRoutes';
 import { applyGrounding, buildFactBank, GroundingReport } from '../utils/grounding';
 
 interface Incident {
@@ -29,6 +30,8 @@ interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  nextCheck?: string;
+  suggestedFix?: string;
   grounding?: GroundingReport;
 }
 
@@ -36,12 +39,20 @@ interface SimulationResult {
   action: string;
   predictedOutcome: string;
   confidence: number;
+  expectedPowerDevPct?: number;
+  baseline?: Record<string, number>;
 }
 
 interface VerificationResult {
   passed: boolean;
   actualOutcome: string;
   metrics: Record<string, number>;
+  checks?: Array<{ label: string; limit: string; actual: number; unit: string; passed: boolean }>;
+  baseline?: Record<string, number>;
+  predictionHeld?: boolean;
+  expectedPowerDevPct?: number;
+  simulatedEffect?: 'recovered' | 'unchanged';
+  savings?: { kw: number; usdPerDay: number; kgCo2PerMonth: number; assumptions: string };
 }
 
 interface AuditEntry {
@@ -50,6 +61,11 @@ interface AuditEntry {
   action: string;
   details: string;
 }
+
+// Assumptions behind the "what the fix saves" figure, shown to the user.
+const SAVINGS_HOURS_PER_DAY = 16; // two-shift operation
+const ELECTRICITY_USD_PER_KWH = 0.12;
+const GRID_KG_CO2_PER_KWH = 0.71;
 
 // In-memory incident store
 const incidents: Map<string, Incident> = new Map();
@@ -109,6 +125,57 @@ export async function loadPersistedIncidents(): Promise<void> {
   if (rows.length > 0) {
     console.log(`[Init] Loaded ${rows.length} persisted incidents from BigQuery`);
   }
+}
+
+
+// Extra resolved history so the AI has more to learn from and the report card has
+// real variety, including fixes that did NOT work.
+function extraPastSeeds(): any[] {
+  const hyp = (id: string, title: string, confidence: number, sopRef: string | null, ev: string[], against: string[]) => ({
+    id, title, confidence, evidenceFor: ev, evidenceAgainst: against, sopRef,
+  });
+  const base = (
+    id: string, machineId: string, machineName: string, daysAgo: number, devPct: number,
+    severity: 'warning' | 'critical', status: 'verified' | 'closed', hypotheses: any[],
+    action: string, predicted: string, conf: number, passed: boolean, outcome: string, comment: string
+  ) => ({
+    id, machineId, machineName, daysAgo, devPct, severity, status, hypotheses,
+    simulation: { action, predictedOutcome: predicted, confidence: conf },
+    verification: { passed, actualOutcome: outcome, metrics: { powerDevPct: passed ? 1.6 : devPct * 0.8, vibration: passed ? 2.3 : 4.9, cycleTime: passed ? 90 : 112 } },
+    resolutionComment: comment,
+  });
+  return [
+    base('INC-PAST-008', 'CNC-01', 'CNC Mill 01', 20, 9.4, 'warning', 'verified',
+      [hyp('HYP-1', 'Worn cutting tool increasing cutting force', 78, 'SOP-101',
+        ['Power crept up 9% over two shifts', 'Time per part rose by about 7%'], ['Vibration stayed under the healthy limit']),
+       hyp('HYP-2', 'Coolant concentration drifting low', 40, 'SOP-101', ['Surface finish complaints on the last batch'], ['Coolant was topped up yesterday'])],
+      'Replace the cutting insert and re-run the warm-up cycle', 'Power should fall back within 3% once the sharp insert is fitted.', 84, true,
+      'Power settled at 1.2% above normal. Vibration and part time back to baseline.', 'Insert was chipped. Replaced and logged tool life.'),
+    base('INC-PAST-009', 'CNC-02', 'CNC Mill 02', 16, 8.9, 'warning', 'closed',
+      [hyp('HYP-1', 'Spindle drive belt slipping', 71, 'SOP-102', ['Power high while spindle speed dips under load', 'Squeal reported at start-up'], ['No recent belt change recorded']),
+       hyp('HYP-2', 'Cutting tool wear', 45, 'SOP-101', ['Time per part slightly longer'], ['Tool was changed 2 days ago'])],
+      'Re-tension the spindle belt', 'Power should drop within 3% after re-tensioning.', 74, false,
+      'Power stayed 7.1% above normal. The fix did not hold.', 'Belt tension was fine. Real cause was a dry ball screw, fixed with lubrication. The first guess was wrong.'),
+    base('INC-PAST-010', 'LATHE-01', 'CNC Lathe 01', 14, 13.2, 'critical', 'verified',
+      [hyp('HYP-1', 'Hydraulic chuck pressure set too high', 66, 'SOP-102', ['Power high even when idle between cuts', 'Hydraulic unit running hot'], ['Part quality looked normal']),
+       hyp('HYP-2', 'Spindle bearing wear', 52, 'SOP-102', ['Vibration slightly raised'], ['Vibration well under the alarm level'])],
+      'Reset chuck pressure to the SOP value and check the relief valve', 'Idle power should fall and total power return within 3%.', 80, true,
+      'Power dropped to 2.1% above normal and stayed there for the full hour.', 'Pressure had been raised for a heavy job and never reset.'),
+    base('INC-PAST-011', 'PRS-01', 'Press 01', 9, 12.7, 'critical', 'verified',
+      [hyp('HYP-1', 'Hydraulic pump wear', 69, 'SOP-102', ['Power rising with each stroke count', 'Cycle time creeping up'], ['No oil leak seen']),
+       hyp('HYP-2', 'Die misalignment', 48, 'SOP-101', ['Uneven wear marks on the die'], ['Alignment checked last month'])],
+      'Replace the hydraulic pump seal kit and bleed the line', 'Power should return within 3% and the stroke time should shorten.', 77, true,
+      'Power settled at 2.4% above normal. Stroke time back to baseline.', 'Pump seals worn. Replaced the kit and bled air from the line.'),
+    base('INC-PAST-012', 'CNC-03', 'CNC Mill 03', 6, 16.3, 'critical', 'closed',
+      [hyp('HYP-1', 'Coolant pump partly blocked', 62, 'SOP-101', ['Power high with no vibration change', 'Coolant flow gauge reading low'], ['Filter changed last week']),
+       hyp('HYP-2', 'Spindle bearing wear', 58, 'SOP-102', ['Vibration above 4 mm/s'], ['Bearing replaced 12 days ago'])],
+      'Clean the coolant pump inlet and replace the filter', 'Power should fall within 3% once flow is restored.', 70, false,
+      'Power only dropped to 11.8% above normal. The fix did not hold.', 'Coolant was not the cause. A second spindle bearing was failing. Replaced and verified in INC-PAST-001 style.'),
+    base('INC-PAST-013', 'PRS-01', 'Press 01', 3, 7.2, 'warning', 'verified',
+      [hyp('HYP-1', 'Low lubrication on the press guides', 73, 'SOP-101', ['Power up 7% with no vibration change', 'Guide rails looked dry'], ['Lubricant reservoir was half full'])],
+      'Lubricate the guide rails and reset the auto-lube timer', 'Friction should drop and power return within 3%.', 79, true,
+      'Power settled at 1.4% above normal.', 'Auto-lube timer had been reset by a power cut. Corrected.'),
+  ];
 }
 
 /**
@@ -434,6 +501,8 @@ export function seedPastIncidents(): void {
     },
   ];
 
+  seeds.push(...extraPastSeeds());
+
   for (const seed of seeds) {
     if (incidents.has(seed.id)) continue;
     const detectedAt = new Date(now - seed.daysAgo * day).toISOString();
@@ -454,22 +523,22 @@ export function seedPastIncidents(): void {
           timestamp: detectedAt,
           actor: 'system',
           action: 'incident_created',
-          details: `${seed.machineName} exceeded ${seed.severity} threshold at ${seed.devPct}% deviation`,
+          details: `${seed.machineName} was ${Math.abs(seed.devPct)}% off normal power (${seed.severity === 'critical' ? 'Action required' : 'Watch'})`,
         },
         {
-          timestamp: new Date(now - seed.daysAgo * day + 3600000).toISOString(),
+          timestamp: new Date(now - seed.daysAgo * day + 5 * 60000).toISOString(),
           actor: 'ai',
           action: 'investigation_completed',
-          details: `AI generated ${seed.hypotheses.length} hypotheses. Top: ${seed.hypotheses[0]?.title}`,
+          details: `AI suggested ${seed.hypotheses.length} likely causes. Top: ${seed.hypotheses[0]?.title}`,
         },
         {
-          timestamp: new Date(now - seed.daysAgo * day + 7200000).toISOString(),
+          timestamp: new Date(now - seed.daysAgo * day + 15 * 60000).toISOString(),
           actor: 'engineer',
           action: 'action_taken',
           details: seed.simulation?.action || 'Action taken',
         },
         {
-          timestamp: new Date(now - seed.daysAgo * day + 10800000).toISOString(),
+          timestamp: new Date(now - seed.daysAgo * day + 25 * 60000).toISOString(),
           actor: 'system',
           action: 'verification_completed',
           details: seed.verification
@@ -479,7 +548,7 @@ export function seedPastIncidents(): void {
         ...(seed.resolutionComment
           ? [
               {
-                timestamp: new Date(now - seed.daysAgo * day + 10800000).toISOString(),
+                timestamp: new Date(now - seed.daysAgo * day + 25 * 60000).toISOString(),
                 actor: 'engineer',
                 action: 'incident_resolved',
                 details: seed.resolutionComment,
@@ -508,51 +577,48 @@ export function seedPastIncidents(): void {
 export function seedOpenIncidents(): void {
   const now = Date.now();
   const hour = 60 * 60 * 1000;
+  // Staggered detection times so the list looks like a real shift, not one instant.
+  const agesHours = [2.5, 1.5, 0.75, 0.25, 4];
+  let seeded = 0;
 
-  const seeds: Array<{
-    id: string;
-    machineId: string;
-    machineName: string;
-    hoursAgo: number;
-    devPct: number;
-    severity: 'warning' | 'critical';
-  }> = [
-    { id: 'INC-DEMO-001', machineId: 'CNC-02', machineName: 'CNC Mill 02', hoursAgo: 2, devPct: 8.4, severity: 'warning' },
-    { id: 'INC-DEMO-002', machineId: 'GRD-01', machineName: 'Grinder 01', hoursAgo: 1, devPct: 9.8, severity: 'warning' },
-    { id: 'INC-DEMO-003', machineId: 'PRS-01', machineName: 'Press 01', hoursAgo: 0.5, devPct: 12.1, severity: 'critical' },
-  ];
+  getMachines().forEach((m, i) => {
+    const status = getMachineStatus(m.id);
+    if (!status || status.status === 'normal') return;
+    if (getOpenIncidentForMachine(m.id)) return; // never a second open incident on one machine
 
-  for (const seed of seeds) {
-    if (incidents.has(seed.id)) continue;
-    // Don't create a second open incident on a machine that already has one
-    // (e.g. from the live simulator) — createIncident's own dedup covers
-    // runtime calls, but this seed runs directly against the map.
-    if (getOpenIncidentForMachine(seed.machineId)) continue;
+    const incident = createIncident(m.id, status.devPct, status.status);
+    const detectedAt = new Date(now - agesHours[i % agesHours.length] * hour).toISOString();
+    incident.detectedAt = detectedAt;
+    if (incident.auditLog[0]) incident.auditLog[0].timestamp = detectedAt;
+    persistIncident(incident);
+    seeded++;
+  });
 
-    const detectedAt = new Date(now - seed.hoursAgo * hour).toISOString();
-    const incident: Incident = {
-      id: seed.id,
-      machineId: seed.machineId,
-      machineName: seed.machineName,
-      status: 'open',
-      detectedAt,
-      severity: seed.severity,
-      devPct: seed.devPct,
-      hypotheses: [],
-      aiCostUsd: 0,
-      auditLog: [
-        {
-          timestamp: detectedAt,
-          actor: 'system',
-          action: 'incident_detected',
-          details: `Deviation ${seed.devPct}% detected on ${seed.machineName}`,
-        },
-      ],
-    };
-    incidents.set(seed.id, incident);
+  console.log(`[Init] Ensured open, unanswered demo incidents (${seeded} created)`);
+}
+
+// Demo reset for presenters and judges: close whatever is currently open, put every
+// machine back in its original condition, and create fresh open problems to work on.
+// Closed incidents stay as history. Nothing is deleted.
+export function resetDemo(): { closed: number; created: number } {
+  let closed = 0;
+  for (const inc of incidents.values()) {
+    if (OPEN_STATUSES.includes(inc.status)) {
+      inc.status = 'closed';
+      inc.auditLog.push({
+        timestamp: new Date().toISOString(),
+        actor: 'system',
+        action: 'demo_reset',
+        details: 'Closed by a demo reset so a fresh set of problems could be created',
+      });
+      persistIncident(inc);
+      closed++;
+    }
   }
-
-  console.log(`[Init] Seeded ${seeds.length} open, unanswered demo incidents`);
+  resetMachineConditions();
+  const before = incidents.size;
+  seedOpenIncidents();
+  return { closed, created: incidents.size - before };
 }
 
 export function getIncidents(): Incident[] {
@@ -695,7 +761,7 @@ export async function investigateIncident(
     timestamp: new Date().toISOString(),
     actor: 'system',
     action: 'investigation_started',
-    details: `AI investigation initiated for ${incident.machineName}`,
+    details: `AI started looking into ${incident.machineName}`,
   });
 
   // Enrich the context with the machine's REAL current readings so the AI
@@ -742,9 +808,15 @@ export async function investigateIncident(
   let trace: InvestigationTraceStep[] = [];
   const tracker = new CostTracker();
   try {
-    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents, tracker);
+    const tA = Date.now();
+    const progress = (message: string) => broadcastEvent({ type: 'investigationProgress', incidentId: incident.id, message });
+    const agentic = await investigateAgentic(enrichedContext, sops, toolExecutor, pastIncidents, tracker, progress);
+    progress('A second AI pass is double-checking the answer');
+    const tB = Date.now();
     const critiqued = await critiqueHypotheses(enrichedContext, agentic.hypotheses, sops, tracker);
+    console.log(`[AI] investigate ${tB - tA}ms, critique ${Date.now() - tB}ms`);
     trace = agentic.trace;
+    progress('Code is checking every number against the sensor data');
     // Deterministic check (not AI): every figure quoted must exist in the
     // data this investigation actually saw.
     const grounded = applyGrounding(
@@ -773,7 +845,7 @@ export async function investigateIncident(
     timestamp: new Date().toISOString(),
     actor: 'ai',
     action: 'hypotheses_generated',
-    details: `${hypotheses.length} hypotheses generated via ${trace.filter((t) => t.type === 'tool_call').length} tool calls, grounded in ${sops.map((s) => s.id).join(', ') || 'no SOP match'}, cross-checked by a second review pass, figures verified by code against sensor data (${hypotheses.reduce((n, h) => n + (h.grounding?.figuresVerified ?? 0), 0)}/${hypotheses.reduce((n, h) => n + (h.grounding?.figuresChecked ?? 0), 0)})${droppedByGrounding.length ? `, dropped as unsupported: ${droppedByGrounding.join('; ')}` : ''} (AI cost: $${tracker.totalCostUsd().toFixed(4)})`,
+    details: `AI suggested ${hypotheses.length} likely causes. It read ${trace.filter((t) => t.type === 'tool_call').length} sets of live readings and used ${sops.map((s) => s.id).join(', ') || 'no matching procedure'}. A second AI pass reviewed them, then code confirmed ${hypotheses.reduce((n, h) => n + (h.grounding?.figuresVerified ?? 0), 0)} of ${hypotheses.reduce((n, h) => n + (h.grounding?.figuresChecked ?? 0), 0)} quoted numbers against the sensor data.${droppedByGrounding.length ? ` Removed as unsupported: ${droppedByGrounding.join('; ')}.` : ''} AI cost: $${tracker.totalCostUsd().toFixed(4)}.`,
   });
 
   persistIncident(incident);
@@ -819,7 +891,22 @@ export async function simulateAction(
     throw err;
   }
   incident.status = 'action_taken';
-  incident.simulation = simulation;
+  // A new fix attempt supersedes any earlier verdict.
+  incident.verification = undefined;
+  // Snapshot the live readings now so Verify can show a real before/after.
+  const before = getMachineStatus(incident.machineId);
+  incident.simulation = {
+    ...simulation,
+    baseline: before
+      ? {
+          powerDevPct: Math.round(before.devPct * 10) / 10,
+          vibrationMmS: Math.round((before.vibration ?? 0) * 100) / 100,
+          cycleTimeSec: Math.round((before.cycleTime ?? 0) * 10) / 10,
+          actualKw: before.actual,
+          expectedKw: before.expected,
+        }
+      : undefined,
+  };
   incident.aiCostUsd += tracker.totalCostUsd();
 
   incident.auditLog.push({
@@ -844,6 +931,18 @@ export async function verifyOutcome(
   // Use the machine's REAL current readings when the client doesn't supply
   // explicit metrics, so verification reflects live state rather than fixed
   // numbers. The client can still override with explicit actualMetrics.
+  // Demo machine: the simulated plant only recovers if the engineer's chosen
+  // cause is the one the AI ranked most likely. A different cause leaves the
+  // machine as it was, so verification fails honestly.
+  const topId = [...incident.hypotheses].sort((a, b) => b.confidence - a.confidence)[0]?.id;
+  let simulatedEffect: 'recovered' | 'unchanged' | undefined;
+  if (!(body.actualMetrics && Object.keys(body.actualMetrics).length > 0) && incident.selectedHypothesis) {
+    if (incident.selectedHypothesis === topId && applySimulatedFix(incident.machineId)) {
+      simulatedEffect = 'recovered';
+    } else {
+      simulatedEffect = 'unchanged';
+    }
+  }
   const status = getMachineStatus(incident.machineId);
   const actualMetrics: Record<string, number> =
     body.actualMetrics && Object.keys(body.actualMetrics).length > 0
@@ -858,6 +957,21 @@ export async function verifyOutcome(
 
   // Deterministic verification (NOT AI)
   const verification = verify(incident.simulation, actualMetrics);
+  verification.simulatedEffect = simulatedEffect;
+  // Energy the fix actually saved: extra kW before vs extra kW now, from the same
+  // two readings verify() used. Plain arithmetic with the assumptions stated.
+  const b = incident.simulation.baseline;
+  if (verification.passed && b?.actualKw !== undefined && b.expectedKw !== undefined && status) {
+    const savedKw = Math.round(((b.actualKw - b.expectedKw) - (status.actual - status.expected)) * 100) / 100;
+    if (savedKw > 0) {
+      verification.savings = {
+        kw: savedKw,
+        usdPerDay: Math.round(savedKw * SAVINGS_HOURS_PER_DAY * ELECTRICITY_USD_PER_KWH * 100) / 100,
+        kgCo2PerMonth: Math.round(savedKw * SAVINGS_HOURS_PER_DAY * 30 * GRID_KG_CO2_PER_KWH),
+        assumptions: `${SAVINGS_HOURS_PER_DAY} running hours/day, $${ELECTRICITY_USD_PER_KWH}/kWh, ${GRID_KG_CO2_PER_KWH} kg CO₂/kWh`,
+      };
+    }
+  }
   incident.verification = verification;
   incident.status = verification.passed ? 'verified' : 'open';
 
@@ -865,7 +979,13 @@ export async function verifyOutcome(
     timestamp: new Date().toISOString(),
     actor: 'system',
     action: 'outcome_verified',
-    details: verification.passed ? 'PASS: Metrics within expected range' : 'FAIL: Metrics outside expected range',
+    details: `${verification.passed ? 'PASS' : 'FAIL'}: ${verification.actualOutcome}${
+      verification.predictionHeld === undefined
+        ? ''
+        : verification.predictionHeld
+          ? ' AI prediction held.'
+          : ' AI prediction missed.'
+    }`,
   });
 
   persistIncident(incident);
@@ -905,7 +1025,7 @@ export function createIncident(machineId: string, devPct: number, severity: 'war
         timestamp: new Date().toISOString(),
         actor: 'system',
         action: 'incident_detected',
-        details: `Deviation ${devPct}% detected on ${machine?.name || machineId}`,
+        details: `${machine?.name || machineId} is ${Math.abs(devPct)}% ${devPct >= 0 ? 'above' : 'below'} normal power`,
       },
     ],
   };

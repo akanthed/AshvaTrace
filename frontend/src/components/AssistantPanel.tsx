@@ -8,9 +8,9 @@ interface Msg {
 }
 
 const SUGGESTIONS = [
-  'Which machines are in a warning or critical state right now?',
-  'What is the current power deviation on the worst-performing machine?',
-  'What are the open incidents and their top hypotheses?',
+  'Which machines need attention right now?',
+  'Which machine is furthest from normal power?',
+  'What problems are open, and what does the AI think caused them?',
 ];
 
 export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -42,7 +42,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
       const res = await api.askAssistant(q);
       setMessages((m) => [...m, { role: 'assistant', text: res.answer, offTopic: res.offTopic }]);
     } catch (e: any) {
-      setMessages((m) => [...m, { role: 'assistant', text: `Sorry, something went wrong: ${e.message}` }]);
+      setMessages((m) => [...m, { role: 'assistant', text: `Sorry, I could not answer: ${e.message}` }]);
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
       <div className="assistant-panel" onClick={(e) => e.stopPropagation()}>
         <header>
           <b>Assistant</b>
-          <small>Answers questions about this app only</small>
+          <small>Only answers questions about this app</small>
           <button className="close" onClick={onClose} aria-label="Close assistant">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -66,7 +66,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
         <div className="assistant-msgs" ref={scrollRef}>
           {messages.length === 0 && (
             <div className="assistant-empty">
-              <p>Ask me about the machines, alerts, and incidents on this dashboard.</p>
+              <p>Ask me about the machines, alerts and problems you see here.</p>
               <div className="sugg">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} onClick={() => send(s)} disabled={busy}>
@@ -101,7 +101,7 @@ export function AssistantPanel({ open, onClose }: { open: boolean; onClose: () =
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about a machine, alert, or incident…"
+            placeholder="Ask about a machine or a problem…"
             maxLength={500}
             autoFocus
           />

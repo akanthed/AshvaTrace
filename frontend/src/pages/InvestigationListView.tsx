@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Incident } from '../types';
 import { api } from '../services/api';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { ResetDemoButton } from '../components/ResetDemoButton';
 
 function pillClass(severity: string): string {
   return severity === 'critical' ? 'crit' : 'warn';
@@ -18,47 +19,53 @@ export function InvestigationListView() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    api
-      .getIncidents()
-      .then((all) => {
-        const open = all.filter((i) => OPEN_STATUSES.includes(i.status));
+  const load = () =>
+    Promise.all([api.getIncidents(), api.getMachines().catch(() => null)])
+      .then(([all, machines]) => {
+        // Skip incidents for machines that have since been removed from the plant.
+        const known = machines ? new Set(machines.map((m) => m.id)) : null;
+        const open = all.filter((i) => OPEN_STATUSES.includes(i.status) && (!known || known.has(i.machineId)));
         open.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
         setIncidents(open);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+  useEffect(() => {
+    load();
   }, []);
 
-  if (loading) return <LoadingSpinner label="Loading open incidents…" />;
+  if (loading) return <LoadingSpinner label="Loading open problems…" />;
 
   return (
     <div className="view">
       <div className="inc-head">
-        <h1>Investigate</h1>
+        <h1>Open problems</h1>
+        <div className="sp" />
+        <ResetDemoButton compact onDone={load} />
         <span style={{ color: 'var(--muted)', fontSize: 13 }}>
-          {incidents.length} open incident{incidents.length === 1 ? '' : 's'} across the plant
+          {incidents.length} open problem{incidents.length === 1 ? '' : 's'} in the plant
         </span>
       </div>
 
       <section className="panel">
         <header>
-          <h3>Open incidents</h3>
+          <h3>Problems that need attention</h3>
         </header>
         <div className="body">
           {incidents.length === 0 ? (
             <div className="empty">
-              <b style={{ color: 'var(--fg)' }}>No open incidents</b>
-              Nothing needs investigation right now.
+              <b style={{ color: 'var(--fg)' }}>No open problems</b>
+              Everything is running normally.
             </div>
           ) : (
             <div className="tbl-wrap">
               <table className="mtable">
                 <thead>
                   <tr>
-                    <th>Incident</th>
+                    <th>ID</th>
                     <th>Machine</th>
-                    <th className="num">Deviation</th>
+                    <th className="num">Vs normal</th>
                     <th>Severity</th>
                     <th>Status</th>
                     <th>Detected</th>
@@ -80,9 +87,9 @@ export function InvestigationListView() {
                         {inc.devPct}%
                       </td>
                       <td>
-                        <span className={`pill ${pillClass(inc.severity)}`}>{inc.severity}</span>
+                        <span className={`pill ${pillClass(inc.severity)}`}>{inc.severity === 'critical' ? 'Action required' : 'Watch'}</span>
                       </td>
-                      <td>{inc.status}</td>
+                      <td>{({ open: 'Open', investigating: 'AI investigating', action_taken: 'Fix being tried', verified: 'Fix verified', closed: 'Closed' } as Record<string, string>)[inc.status] ?? inc.status}</td>
                       <td className="mono">{new Date(inc.detectedAt).toLocaleString()}</td>
                     </tr>
                   ))}

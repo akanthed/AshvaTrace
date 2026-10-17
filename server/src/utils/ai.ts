@@ -199,6 +199,10 @@ export interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  // One quick floor check that would confirm or rule out this cause.
+  nextCheck?: string;
+  // Concrete repair the engineer can try, pre-filled on the Interventions tab.
+  suggestedFix?: string;
   // Set by the deterministic grounding check (utils/grounding.ts), never by the model.
   grounding?: GroundingReport;
 }
@@ -207,12 +211,34 @@ export interface SimulationResult {
   action: string;
   predictedOutcome: string;
   confidence: number;
+  // Number the AI commits to up front: power deviation (%) it expects after the
+  // fix. Verification later compares the measured value against it.
+  expectedPowerDevPct?: number;
+  // Machine readings captured when the fix was previewed (the "before").
+  baseline?: Record<string, number>;
+}
+
+export interface VerificationCheck {
+  label: string;
+  limit: string;
+  actual: number;
+  unit: string;
+  passed: boolean;
 }
 
 export interface VerificationResult {
   passed: boolean;
   actualOutcome: string;
   metrics: Record<string, number>;
+  checks?: VerificationCheck[];
+  baseline?: Record<string, number>;
+  // Did the measured power deviation land within 3 points of what the AI predicted?
+  predictionHeld?: boolean;
+  expectedPowerDevPct?: number;
+  // Demo only: did the simulated machine respond to the fix?
+  simulatedEffect?: 'recovered' | 'unchanged';
+  // What the fix saves, computed by code from before/after kW (set by incidentService).
+  savings?: { kw: number; usdPerDay: number; kgCo2PerMonth: number; assumptions: string };
 }
 
 export interface SopExcerpt {
@@ -333,18 +359,7 @@ const INVESTIGATION_TOOLS = [
         samples: { type: 'INTEGER', description: 'How many recent samples to include (default 120, max 480)' },
       },
     },
-  },
-  {
-    name: 'inspect_tool',
-    description:
-      'Run a Vision AI inspection of the machine\'s cutting tool. Analyzes a synthetic tool inspection image and returns condition (good/worn/critical), wear percentage, visual observations, and a recommendation.',
-    parameters: {
-      type: 'OBJECT',
-      properties: {
-        wearLevel: { type: 'INTEGER', description: 'Estimated wear level 0-100 to generate the inspection image (use the power deviation as a proxy: higher deviation = more wear)' },
-      },
-    },
-  },
+  }
 ];
 
 export interface PastIncidentRef {
@@ -364,10 +379,45 @@ export async function investigateAgentic(
   sops: SopExcerpt[] = [],
   toolExecutor: (name: string, args: Record<string, unknown>) => unknown | Promise<unknown>,
   pastIncidents: PastIncidentRef[] = [],
-  tracker?: CostTracker
+  tracker?: CostTracker,
+  onProgress?: (message: string) => void
 ): Promise<AgenticInvestigationResult> {
   const trace: InvestigationTraceStep[] = [];
   const maxRounds = 3; // observe -> tools -> reason, capped so a chatty model can't loop forever
+
+  // Pull the standard sensor readings up front, in parallel, in plain code.
+  // This removes a whole model round-trip (the model used to spend ~3s just
+  // deciding to call these) while the model keeps its tools for anything extra.
+  onProgress?.('Reading power, vibration and part-time data');
+  const prefetchCalls: Array<[string, Record<string, unknown>]> = [
+    ['get_power_window', { samples: 60 }],
+    ['get_vibration_stats', { samples: 120 }],
+    ['get_cycle_time_trend', { samples: 120 }],
+  ];
+  const prefetched = await Promise.all(
+    prefetchCalls.map(async ([name, args]) => {
+      let result: unknown;
+      try {
+        result = await toolExecutor(name, args);
+      } catch (err: any) {
+        result = { error: err.message || String(err) };
+      }
+      return { name, args, result };
+    })
+  );
+  for (const p of prefetched) {
+    trace.push({ type: 'tool_call', tool: p.name, args: p.args });
+    trace.push({ type: 'tool_result', tool: p.name, result: p.result });
+  }
+  // Prompt copy drops the 20-row sample list; the full result stays in the trace.
+  const prefetchedSection = prefetched
+    .map((p) => {
+      const r: any = p.result;
+      const slim = r && typeof r === 'object' && r.recentSamples ? { ...r, recentSamples: r.recentSamples.slice(-5) } : r;
+      return `${p.name}: ${JSON.stringify(slim)}`;
+    })
+    .join('\n');
+  onProgress?.('Asking the AI to work out the likely causes');
 
   // Format past incidents for the prompt so the AI can reference prior
   // resolutions: "last time this pattern appeared, the fix was X and
@@ -399,11 +449,10 @@ Machine: "${context.machineId}"
 Initial power deviation from expected baseline: ${context.devPct}%
 Initial sensor readings: ${JSON.stringify(context.signals)}
 
-You have tools to pull REAL readings from this machine's sensor history. Use them BEFORE forming hypotheses — do not guess numbers. A good investigation:
-1. Call get_power_window to see how the deviation has evolved (is it a spike or a sustained drift?)
-2. Call get_vibration_stats to check if vibration is rising alongside power
-3. Call get_cycle_time_trend to see if the machine is working slower
-Then form 3-5 ranked hypotheses grounded in the tool results.
+The code has ALREADY pulled these real readings from the machine's sensor history for you (do not guess any other numbers):
+${prefetchedSection}
+
+You still have tools if you need a different time window, but you normally should not need them. Form exactly 3 ranked hypotheses grounded in the readings above.
 
 Relevant standard operating procedure (SOP) excerpts for this plant — use these as your primary reference, not general knowledge:
 ${formatSops(sops)}
@@ -415,6 +464,10 @@ For each hypothesis:
 - evidenceFor: 2-3 bullet points citing the ACTUAL numbers from the tool results, quoted exactly as returned (never compute, estimate, or invent a figure — every number you write is checked by code against the tool results and dropped if it cannot be found), in plain words a shift supervisor would understand
 - evidenceAgainst: 1-2 bullet points, same plain-language style
 - sopRef: the SOP id this hypothesis follows (e.g. "SOP-101"), or null if none apply
+- nextCheck: one short sentence (max 18 words) telling the operator a quick physical check on the machine that would confirm or rule this cause out
+- suggestedFix: one short imperative sentence (max 14 words) naming the repair to try, e.g. "Replace the spindle bearing and re-run the warm-up cycle"
+
+Style rules: every sentence short and plain, as if speaking to a shift supervisor at the machine. Never write field names such as devPct, cycleTime, powerDevPct or RMS; say "power vs normal", "time per part", "vibration" instead. Avoid technical terms like "regenerative chatter" or "stick-slip"; say what a person would see or hear. Title max 8 words.
 
 When you are done gathering evidence, respond with ONLY a JSON array of hypotheses, no markdown, no explanation.`;
 
@@ -427,10 +480,11 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
   let hypotheses: Hypothesis[] = [];
 
   for (let round = 0; round < maxRounds; round++) {
+    const t0 = Date.now();
     const body: Record<string, unknown> = {
       contents,
       tools: [{ functionDeclarations: INVESTIGATION_TOOLS }],
-      generationConfig: { temperature: 0.3, maxOutputTokens: 2048, ...NO_THINKING },
+      generationConfig: { temperature: 0.3, maxOutputTokens: 1536, ...NO_THINKING },
     };
 
     const project = gcpProject();
@@ -469,6 +523,7 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
       req.end();
     });
 
+    console.log(`[AI] round ${round} model ${Date.now() - t0}ms`);
     const parts = json.candidates?.[0]?.content?.parts || [];
     const text = parts.map((p: any) => p.text || '').join('');
     const toolCalls: ToolCall[] = parts
@@ -496,6 +551,8 @@ When you are done gathering evidence, respond with ONLY a JSON array of hypothes
           evidenceFor: h.evidenceFor || [],
           evidenceAgainst: h.evidenceAgainst || [],
           sopRef: h.sopRef || null,
+          nextCheck: typeof h.nextCheck === 'string' ? h.nextCheck : undefined,
+          suggestedFix: typeof h.suggestedFix === 'string' ? h.suggestedFix : undefined,
         }));
       }
       break;
@@ -595,17 +652,20 @@ export async function simulate(
 Proposed action: "${params.action}"${sopText}
 
 Predict the outcome if this action is taken:
-- predictedOutcome: 1-2 sentences, specific to this machine and action, written in plain words a shift supervisor would understand (no jargon)
+- predictedOutcome: 1-2 short sentences (under 40 words in total), specific to this machine and action, plain words a shift supervisor would understand (no jargon)
+- expectedPowerDevPct: the number you expect the machine's power deviation (in percent from normal) to settle at after the fix. Commit to a single number; it will be checked against the real reading.
 - confidence: 0-100
 
 Respond with ONLY a JSON object, no markdown, no explanation.`;
 
-  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 256, ...NO_THINKING }, tracker);
+  const text = await vertexAIRequest(geminiModel(), prompt, { temperature: 0.3, maxOutputTokens: 512, responseMimeType: 'application/json', ...NO_THINKING }, tracker);
   const parsed = extractJson(text) as any;
+  const expected = Number(parsed.expectedPowerDevPct);
   return {
     action: params.action,
     predictedOutcome: parsed.predictedOutcome || 'Deviation should reduce to normal range',
     confidence: parsed.confidence || 70,
+    expectedPowerDevPct: Number.isFinite(expected) ? expected : undefined,
   };
 }
 
@@ -755,20 +815,30 @@ export function verify(
   const vibration = actualMetrics.vibrationMmS || 0;
   const cycleTime = actualMetrics.cycleTimeSec || 0;
 
-  const passed =
-    Math.abs(powerDev) < 3 && // Power within 3%
-    vibration < 4.5 && // Vibration below critical
-    cycleTime < 120; // Cycle time under 2 min
+  const checks: VerificationCheck[] = [
+    { label: 'Power draw vs normal', limit: 'within ±3%', actual: Math.round(powerDev * 10) / 10, unit: '%', passed: Math.abs(powerDev) < 3 },
+    { label: 'Vibration', limit: 'below 4.5 mm/s', actual: Math.round(vibration * 100) / 100, unit: 'mm/s', passed: vibration < 4.5 },
+    { label: 'Time per part', limit: 'under 120 s', actual: Math.round(cycleTime * 10) / 10, unit: 's', passed: cycleTime < 120 },
+  ];
+  const passed = checks.every((c) => c.passed);
+  const failed = checks.filter((c) => !c.passed).map((c) => c.label.toLowerCase());
+
+  const expected = simulation.expectedPowerDevPct;
+  const predictionHeld = expected === undefined ? undefined : Math.abs(powerDev - expected) <= 3;
 
   return {
     passed,
     actualOutcome: passed
-      ? 'All metrics within acceptable range. Intervention successful.'
-      : 'One or more metrics still outside acceptable range. Further action needed.',
+      ? 'Fix worked. Power, vibration and part time are all back inside their limits.'
+      : `Fix did not hold. Still outside limits: ${failed.join(', ')}. Try another fix or escalate.`,
     metrics: {
-      powerDevPct: Math.round(powerDev * 10) / 10,
-      vibrationMmS: Math.round(vibration * 100) / 100,
-      cycleTimeSec: Math.round(cycleTime * 10) / 10,
+      powerDevPct: checks[0].actual,
+      vibrationMmS: checks[1].actual,
+      cycleTimeSec: checks[2].actual,
     },
+    checks,
+    baseline: simulation.baseline,
+    predictionHeld,
+    expectedPowerDevPct: expected,
   };
 }

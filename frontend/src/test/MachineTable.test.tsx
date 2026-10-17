@@ -68,8 +68,8 @@ describe('MachineTable', () => {
         <MachineTable machines={mockMachines} statuses={mockStatuses} />
       </MemoryRouter>
     );
-    expect(screen.getByText('Source')).toBeInTheDocument();
-    expect(screen.getByText('Value')).toBeInTheDocument();
+    expect(screen.getByText('Machine')).toBeInTheDocument();
+    expect(screen.getByText('Power now')).toBeInTheDocument();
     expect(screen.getByText('Unit')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
     expect(screen.getByText('Last update')).toBeInTheDocument();
@@ -92,8 +92,8 @@ describe('MachineTable', () => {
         <MachineTable machines={mockMachines} statuses={mockStatuses} />
       </MemoryRouter>
     );
-    expect(screen.getByText('Upper alarm')).toBeInTheDocument();
-    expect(screen.getByText('Upper warning')).toBeInTheDocument();
+    expect(screen.getByText('Action required')).toBeInTheDocument();
+    expect(screen.getByText('Watch')).toBeInTheDocument();
     expect(screen.getByText('Normal')).toBeInTheDocument();
   });
 

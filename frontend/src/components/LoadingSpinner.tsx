@@ -4,16 +4,16 @@ import { useEffect, useState } from 'react';
 // Keeps the user engaged and reinforces the domain context instead of
 // showing a blank "Loading…" for several seconds.
 const MESSAGES = [
-  'Calibrating sensor baselines…',
-  'Reading spindle telemetry…',
-  'Syncing shift data from the plant floor…',
-  'Checking vibration signatures…',
-  'Pulling power draw from the grid…',
-  'Warming up the AI investigation engine…',
-  'Cross-referencing maintenance SOPs…',
-  'Measuring cycle times…',
-  'Inspecting tool wear patterns…',
-  'Connecting to machine controllers…',
+  'Getting machine readings ready…',
+  'Reading the machine numbers…',
+  'Loading this shift\'s data…',
+  'Checking vibration…',
+  'Checking power use…',
+  'Getting the AI ready…',
+  'Looking up the plant\'s repair procedures…',
+  'Checking time per part…',
+  'Checking tool wear…',
+  'Loading the demo machines…',
 ];
 
 interface Props {
@@ -39,7 +39,7 @@ export function LoadingSpinner({ label, full = true }: Props) {
         <div className="spinner" />
         <div className="spinner-text">
           <span className="spinner-msg">{message}</span>
-          <span className="spinner-sub">AshvaTrace · Intelligent Operations</span>
+          <span className="spinner-sub">AshvaTrace</span>
         </div>
       </div>
     </div>

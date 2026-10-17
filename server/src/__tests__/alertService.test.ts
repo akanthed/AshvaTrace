@@ -52,7 +52,7 @@ describe('alertService', () => {
     expect(cnc03!.severity).toBe('critical');
     expect(cnc03!.devPct).toBeGreaterThan(10);
     expect(cnc03!.acknowledged).toBe(false);
-    expect(cnc03!.message).toContain('CRITICAL');
+    expect(cnc03!.message).toContain('Action required');
     // Critical alerts get an incident
     expect(cnc03!.incidentId).toBe('INC-TEST-CNC-03');
     expect(createIncident).toHaveBeenCalledWith('CNC-03', cnc03!.devPct, 'critical');

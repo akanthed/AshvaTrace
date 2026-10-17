@@ -146,25 +146,35 @@ export function getCostImpact() {
   // detection to verification is the measured MTTR. Incidents still open
   // count at the benchmark (they haven't been resolved faster yet).
   const resolved = incidents.filter((i) => i.status === 'verified' || i.status === 'closed');
+  // Median, not mean: one incident left unverified for days must not drag
+  // the typical resolution time up.
+  const durations = resolved
+    .map((i) => {
+      const start = new Date(i.detectedAt).getTime();
+      // Resolution time = when the fix was verified, else the last thing
+      // logged on the incident. Never "now".
+      const verified = i.auditLog.find((a) => a.action === 'outcome_verified' || a.action === 'verification_completed')?.timestamp;
+      const last = i.auditLog.length ? i.auditLog[i.auditLog.length - 1].timestamp : i.detectedAt;
+      return Math.max(0, new Date(verified ?? last).getTime() - start) / 60000;
+    })
+    .sort((x, y) => x - y);
+  const mid = Math.floor(durations.length / 2);
   const mttrMinutes =
-    resolved.length > 0
-      ? resolved.reduce((sum, i) => {
-          const start = new Date(i.detectedAt).getTime();
-          const end =
-            i.auditLog.find((a) => a.action === 'outcome_verified')?.timestamp
-              ? new Date(i.auditLog.find((a) => a.action === 'outcome_verified')!.timestamp).getTime()
-              : Date.now();
-          return sum + (end - start) / 60000;
-        }, 0) / resolved.length
-      : ASHVATRACE_MTTR_MIN;
+    durations.length === 0
+      ? ASHVATRACE_MTTR_MIN
+      : durations.length % 2
+        ? durations[mid]
+        : (durations[mid - 1] + durations[mid]) / 2;
 
   const mttrReductionPct = Math.round(
     ((BENCHMARK_MTTR_MIN - mttrMinutes) / BENCHMARK_MTTR_MIN) * 100
   );
+  // Only count time saved, never a negative saving.
+  const savedFraction = Math.max(0, mttrReductionPct) / 100;
 
   // Savings: the downtime minutes that AshvaTrace's faster MTTR avoids,
   // plus the energy waste caught.
-  const avoidedDowntimeMinutes = downtimeMinutes * (mttrReductionPct / 100);
+  const avoidedDowntimeMinutes = downtimeMinutes * savedFraction;
   const avoidedDowntimeCost = (avoidedDowntimeMinutes / 60) * DOWNTIME_COST_PER_HOUR;
   const totalSavings = avoidedDowntimeCost + energyWasteCost;
 

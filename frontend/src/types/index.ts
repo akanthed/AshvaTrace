@@ -10,6 +10,8 @@ export interface Machine {
   name: string;
   type: string;
   thresholds: Thresholds;
+  ip?: string;
+  port?: number;
 }
 
 export interface Sample {
@@ -47,7 +49,17 @@ export interface Hypothesis {
   evidenceFor: string[];
   evidenceAgainst: string[];
   sopRef?: string | null;
+  nextCheck?: string;
+  suggestedFix?: string;
   grounding?: Grounding;
+}
+
+export interface VerificationCheck {
+  label: string;
+  limit: string;
+  actual: number;
+  unit: string;
+  passed: boolean;
 }
 
 export interface Grounding {
@@ -81,11 +93,19 @@ export interface Incident {
     action: string;
     predictedOutcome: string;
     confidence: number;
+    expectedPowerDevPct?: number;
+    baseline?: Record<string, number>;
   };
   verification?: {
     passed: boolean;
     actualOutcome: string;
     metrics: Record<string, number>;
+    checks?: VerificationCheck[];
+    baseline?: Record<string, number>;
+    predictionHeld?: boolean;
+    expectedPowerDevPct?: number;
+    simulatedEffect?: 'recovered' | 'unchanged';
+    savings?: { kw: number; usdPerDay: number; kgCo2PerMonth: number; assumptions: string };
   };
   auditLog: AuditEntry[];
   aiCostUsd: number;
@@ -189,4 +209,17 @@ export interface DashboardLayout {
   tileXPct: number | null;
   tileYPct: number | null;
   locked: boolean;
+}
+
+export interface TrackRecord {
+  scope: 'plant' | 'machine';
+  machineId?: string;
+  graded: number;
+  fixesPassed: number;
+  topCauseChosen: number;
+  topCausePassed: number;
+  predictionsScored: number;
+  predictionsHeld: number;
+  avgPredictionErrorPts: number | null;
+  calibration: Array<{ label: string; incidents: number; passed: number }>;
 }

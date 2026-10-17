@@ -20,17 +20,17 @@ const GROUPS: Array<[GroupKey, string, Array<[TabKey, string]>]> = [
     [
       ['monitoring', 'Monitoring'],
       ['dashboard', 'Dashboard'],
-      ['threshold', 'Threshold'],
+      ['threshold', 'Limits'],
       ['trends', 'Trends'],
-      ['plant', 'Plant'],
+      ['plant', 'Machines'],
     ],
   ],
   [
     'investigate',
-    'Investigate & Verify',
+    'Find the cause & fix it',
     [
       ['investigate', 'Investigate'],
-      ['actions', 'Actions'],
+      ['actions', 'Fix'],
       ['verify', 'Verify'],
       ['audit', 'Audit'],
     ],
@@ -58,8 +58,8 @@ function isTabKey(value: string | null): value is TabKey {
 
 const DASHBOARD_TILE_KEYS = ['power', 'deviation'];
 const DASHBOARD_TILE_LABELS: Record<string, string> = {
-  power: 'Active power',
-  deviation: 'Power deviation',
+  power: 'Power now (kW)',
+  deviation: 'Power vs normal',
 };
 
 function groupForTab(tab: TabKey): GroupKey {
@@ -161,10 +161,7 @@ export function MachineView() {
     <div className="view">
       <div className="inc-head">
         <h1>{machine.name}</h1>
-        <span className={`pill ${pillClass(status.status)}`}>{status.status}</span>
-        <span className="pill ok" style={{ background: 'none', padding: 0, color: 'var(--muted)' }}>
-          {statusLabel(status.status)}
-        </span>
+        <span className={`pill ${pillClass(status.status)}`}>{statusLabel(status.status)}</span>
         <div className="kv">
           Machine
           <b>{machine.id}</b>
@@ -173,6 +170,14 @@ export function MachineView() {
           Type
           <b>{machine.type}</b>
         </div>
+        {machine.ip && (
+          <div className="kv">
+            Address
+            <b className="mono">
+              {machine.ip}:{machine.port}
+            </b>
+          </div>
+        )}
         <div className="sp" />
       </div>
 
@@ -192,9 +197,9 @@ export function MachineView() {
       {tab === 'trends' && (
         <section className="panel">
           <header>
-            <h3>Power Trends</h3>
+            <h3>Power over time</h3>
             <div className="sp" />
-            <span className="prov">What the machine used vs. what it should have used, updated live</span>
+            <span className="prov">What the machine used compared with what it should use. Updates live.</span>
           </header>
           <div className="body" style={{ height: 320 }}>
             {series && (
@@ -207,7 +212,7 @@ export function MachineView() {
             )}
           </div>
           <div className="body" style={{ paddingTop: 0 }}>
-            <small style={{ color: 'var(--muted)' }}>Drag the handles on the bar below the chart to zoom into a time range.</small>
+            <small style={{ color: 'var(--muted)' }}>Drag the ends of the bar under the chart to zoom in on a time range.</small>
           </div>
         </section>
       )}
@@ -217,7 +222,7 @@ export function MachineView() {
           <header>
             <h3>Dashboard · {machine.id}</h3>
             <div className="sp" />
-            <span className="prov">Upload a blueprint or photo, then drag Active power onto it</span>
+            <span className="prov">Upload a photo or drawing of the machine, then drag the power number to where it belongs</span>
           </header>
           <DashboardCanvas machineId={machine.id} status={status} thresholds={thresholds} />
           <div className="body" style={{ display: 'grid', gap: 16 }}>
@@ -229,7 +234,7 @@ export function MachineView() {
                       ✕
                     </button>
                     <span className="num" style={{ color: 'var(--muted)', fontSize: 12 }}>
-                      {k === 'power' ? 'Active power' : 'Power deviation'}
+                      {k === 'power' ? 'Power now (kW)' : 'Power vs normal'}
                     </span>
                     <span className="val">{k === 'power' ? status.actual.toFixed(1) : `${dev > 0 ? '+' : ''}${dev.toFixed(1)}%`}</span>
                   </div>
@@ -238,7 +243,7 @@ export function MachineView() {
             ) : (
               <div className="empty">
                 <b style={{ color: 'var(--fg)' }}>No tiles yet</b>
-                Nothing to show here yet.
+                Add a number below to see it here.
               </div>
             )}
             {DASHBOARD_TILE_KEYS.some((k) => !dashTiles.includes(k)) && (
@@ -263,13 +268,13 @@ export function MachineView() {
       {(tab === 'investigate' || tab === 'actions' || tab === 'verify' || tab === 'audit') && (
         <section className="panel">
           <header>
-            <h3>{tab === 'investigate' ? 'Investigate' : tab === 'actions' ? 'Interventions' : tab === 'verify' ? 'Verification' : 'Audit trail'}</h3>
+            <h3>{tab === 'investigate' ? 'Investigate' : tab === 'actions' ? 'Fix' : tab === 'verify' ? 'Check the fix' : 'History'}</h3>
           </header>
           <div className="body">
             {incident ? (
               <div className="empty">
                 <b style={{ color: 'var(--fg)' }}>Incident {incident.id} open</b>
-                Investigation, interventions, verification and audit trail for this machine live on its incident page.
+                The steps for this problem (find the cause, fix, check, history) are on its incident page.
                 <div>
                   <Link className="primary" to={`/incident/${incident.id}?tab=${tab}`} style={{ textDecoration: 'none' }}>
                     Open incident
@@ -279,7 +284,7 @@ export function MachineView() {
             ) : (
               <div className="empty">
                 <b style={{ color: 'var(--fg)' }}>No open incident</b>
-                This tab populates once an incident is opened for {machine.id}.
+                Nothing to show yet. This fills in when a problem is opened for {machine.id}.
               </div>
             )}
           </div>

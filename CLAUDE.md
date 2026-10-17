@@ -71,9 +71,13 @@ very first static-mockup phase and is no longer accurate.
 - **Real Gemini integration** (`server/src/utils/ai.ts`), via Vertex AI's
   REST `generateContent` API using Application Default Credentials (no API
   key in the browser, ever):
-  - `investigateAgentic()` — an actual tool-calling agent: Gemini calls
-    `get_power_window` / `get_vibration_stats` / `get_cycle_time_trend` /
-    `inspect_tool` to pull real sensor data before forming hypotheses,
+  - `investigateAgentic()` — code pre-fetches `get_power_window` /
+    `get_vibration_stats` / `get_cycle_time_trend` in parallel (saves a model
+    round-trip; whole investigation now ~10s, was 17–48s) and Gemini keeps
+    those same tools to call again for a different window. `inspect_tool`
+    (Vision AI) was removed from the agent loop for speed; it remains the
+    separate "Cutting tool check" button on the machine page. Progress is
+    pushed over SSE (`investigationProgress`) to the Ask AI button,
     grounded in retrieved SOP excerpts and past resolved incidents on the
     same machine ("last time this happened, the fix was X and it worked").
   - `critiqueHypotheses()` — a second, independent Gemini call that reviews
@@ -118,6 +122,29 @@ very first static-mockup phase and is no longer accurate.
     scores top-1/top-3 accuracy and figure-grounding rate with plain code (no
     AI judge). Writes `server/eval-results.json`. Live runs vary (top-1 50–75%,
     top-3 100%, figures verified 100% in two runs) — quote real numbers only.
+  - Demo machine behaviour: on Verify, `applySimulatedFix()` makes the
+    simulated machine recover only if the engineer's chosen cause is the AI's
+    top-ranked one; otherwise it stays broken and Verify fails. The Verify tab
+    says so (`simulatedEffect`). Verify also scores the AI's committed
+    `expectedPowerDevPct` against the measured value (±3 points).
+  - Machines carry `ip` + `port` (Plant page form, validated by `validateAddress()` in
+    `machineService.ts`, unique per machine, persisted in BigQuery `ip_address`/`port`
+    columns added by an ALTER TABLE migration). Demo machines get 192.168.x.x:4840
+    defaults. The server never connects to the address on purpose: on a public deployment
+    that would be an SSRF/port-scan risk. Keep it that way unless access is restricted.
+  - Demo data: `LATHE-01` and `PRS-01` now start abnormal (11.5% / 6.8%) so four machines
+    have an open problem (CNC-01 stays healthy). `seedOpenIncidents()` creates an open
+    incident for any abnormal machine without one; `resetDemo()` (`POST
+    /api/system/reset-demo`, "Restore sample problems" button on Open problems and
+    Settings) closes open incidents, restores machine conditions and reseeds. 13 past
+    incidents are seeded, 2 with failed fixes. No login exists; judges just open the URL.
+  - AI report card (`services/trackRecordService.ts`, `GET /api/analytics/track-record`,
+    Analytics panel + one-line track record on each incident): code grades the AI
+    from verify() outcomes (fixes passed, predictions held, stated confidence vs
+    real pass rate). Verified fixes also get code-computed savings (kW, $/day,
+    CO2/month; 16 h/day, $0.12/kWh, 0.71 kg/kWh). Open incidents show a live
+    "costing you right now" banner. Seeded history is all passes, so the card
+    looks rosier than real use.
   - `verify()` is explicitly **not** AI — deterministic pass/fail against
     real post-action metrics. Preserve this split.
 - **Deterministic core**: threshold-based status (`normal`/`warning`/

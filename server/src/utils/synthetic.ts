@@ -25,6 +25,10 @@ export interface MachineInfo {
   type: string;
   thresholds: Thresholds;
   series: Sample[];
+  // Network address of the machine's data source (OPC UA / MQTT gateway). Stored with
+  // the machine; this demo never opens a connection to it.
+  ip?: string;
+  port?: number;
   // Center of the deviation band (percent) this machine should stay in. The
   // live tick mean-reverts toward it so the machine holds its condition.
   targetDevPct?: number;
@@ -62,9 +66,9 @@ const SEED = 4207;
 //   CNC-01  → Normal   (deviation hovers near 0–2%, well under the 5% warning)
 //   CNC-02  → Warning  (deviation hovers ~6–9%, above warning, under critical)
 //   CNC-03  → Action   (deviation hovers ~12–18%, above the 10% critical)
-//   LATHE-01→ Normal   (different process type, for plant breadth)
+//   LATHE-01→ Action   (different process type, for plant breadth)
 //   GRD-01  → Warning
-//   PRS-01  → Normal
+//   PRS-01  → Warning
 //
 // `targetDevPct` is the center of the band the machine's power deviation
 // should sit in. The seeded series and the live tick both mean-revert toward
@@ -85,7 +89,7 @@ const MACHINE_DEFS = [
   },
   {
     id: 'LATHE-01', name: 'CNC Lathe 01', type: 'turning', base: 38, warning: 5, critical: 10,
-    cyclePeriods: 2, cyclePhase: 0.6, targetDevPct: 1.5,
+    cyclePeriods: 2, cyclePhase: 0.6, targetDevPct: 11.5,
   },
   {
     id: 'GRD-01', name: 'Grinder 01', type: 'grinding', base: 30, warning: 5, critical: 10,
@@ -93,7 +97,7 @@ const MACHINE_DEFS = [
   },
   {
     id: 'PRS-01', name: 'Press 01', type: 'stamping', base: 55, warning: 5, critical: 10,
-    cyclePeriods: 1, cyclePhase: 1.5, targetDevPct: 0.5,
+    cyclePeriods: 1, cyclePhase: 1.5, targetDevPct: 6.8,
   },
 ];
 

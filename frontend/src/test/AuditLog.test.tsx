@@ -19,11 +19,11 @@ describe('AuditLog', () => {
     expect(screen.getByText('Generated 3 hypotheses for INC-0412')).toBeInTheDocument();
   });
 
-  it('displays actor names in brackets', () => {
+  it('labels who did each step', () => {
     render(<AuditLog entries={mockEntries} />);
-    expect(screen.getAllByText('[system]').length).toBe(2);
-    expect(screen.getByText('[engineer]')).toBeInTheDocument();
-    expect(screen.getByText('[ai]')).toBeInTheDocument();
+    expect(screen.getAllByText('System').length).toBe(2);
+    expect(screen.getByText('Engineer')).toBeInTheDocument();
+    expect(screen.getByText('AI')).toBeInTheDocument();
   });
 
   it('displays 4 audit entries', () => {

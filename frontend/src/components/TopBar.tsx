@@ -102,7 +102,7 @@ export default function TopBar() {
                   <b>Settings</b>
                 </li>
                 <li style={{ padding: '6px 8px', color: 'var(--muted)', fontSize: 12 }}>
-                  Simulated session — no real auth
+                  Demo login — no real account
                 </li>
               </ul>
             </div>
@@ -136,7 +136,7 @@ export default function TopBar() {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
-        <span className="assistant-ph">How can I assist you today?</span>
+        <span className="assistant-ph">Ask me about the machines or problems</span>
         <span className="assistant-actions">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
@@ -190,8 +190,8 @@ export default function TopBar() {
 
       <button
         className="ico-btn"
-        title={criticalIncident ? `Open active incident (${criticalIncident.machineName})` : 'No active critical incident'}
-        aria-label="Open the active incident"
+        title={criticalIncident ? `Open the current problem (${criticalIncident.machineName})` : 'No urgent problem right now'}
+        aria-label="Open the current problem"
         onClick={() => criticalIncident && navigate(`/incident/${criticalIncident.id}`)}
         disabled={!criticalIncident}
       >

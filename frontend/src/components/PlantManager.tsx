@@ -9,7 +9,18 @@ interface Props {
   currentMachineId?: string;
 }
 
-const emptyForm = { id: '', name: '', type: '' };
+const emptyForm = { id: '', name: '', type: '', ip: '', port: '4840' };
+
+// Quick check before sending; the server checks again. Accepts IPv4 such as 192.168.10.15.
+const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+
+function addressProblem(ip: string, port: string): string | null {
+  if (!ip.trim()) return 'Enter the IP address of the machine';
+  if (!IPV4.test(ip.trim())) return 'That is not a valid IP address (example: 192.168.10.15)';
+  const p = Number(port);
+  if (!Number.isInteger(p) || p < 1 || p > 65535) return 'Port must be a whole number from 1 to 65535 (example: 4840)';
+  return null;
+}
 
 export function PlantManager({ machines, onChange, currentMachineId }: Props) {
   const navigate = useNavigate();
@@ -20,7 +31,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
 
   const startEdit = (m: Machine) => {
     setEditingId(m.id);
-    setForm({ id: m.id, name: m.name, type: m.type });
+    setForm({ id: m.id, name: m.name, type: m.type, ip: m.ip ?? '', port: m.port ? String(m.port) : '4840' });
     setError(null);
   };
 
@@ -33,18 +44,28 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    // A machine that never had an address may be edited without one; a new machine needs it.
+    const legacyBlank = !!editingId && !form.ip.trim();
+    const problem = legacyBlank ? null : addressProblem(form.ip, form.port);
+    if (problem) {
+      setError(problem);
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) {
         await api.updateMachine(editingId, {
           name: form.name,
           type: form.type,
+          ...(legacyBlank ? {} : { ip: form.ip.trim(), port: Number(form.port) }),
         });
       } else {
         await api.createMachine({
           id: form.id,
           name: form.name,
           type: form.type,
+          ip: form.ip.trim(),
+          port: Number(form.port),
         });
       }
       cancelEdit();
@@ -80,7 +101,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
         {error && <div className="prov" style={{ color: 'var(--crit)' }}>{error}</div>}
 
         <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10 }}>
-          <div className="assume" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+          <div className="assume">
             <label>
               Machine ID
               <input
@@ -112,7 +133,34 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
                 required
               />
             </label>
+            <label>
+              IP address
+              <input
+                type="text"
+                inputMode="decimal"
+                value={form.ip}
+                onChange={(e) => setForm((f) => ({ ...f, ip: e.target.value }))}
+                placeholder="e.g. 192.168.10.15"
+                required={!editingId}
+              />
+            </label>
+            <label>
+              Port
+              <input
+                type="number"
+                min={1}
+                max={65535}
+                value={form.port}
+                onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
+                placeholder="e.g. 4840"
+                required={!editingId}
+              />
+            </label>
           </div>
+          <p className="prov" style={{ margin: 0 }}>
+            Each machine is added by the IP address and port of its data source (for example an OPC UA gateway on port 4840). The address is saved
+            with the machine, but this demo does not connect to it: all readings are simulated.
+          </p>
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="primary" type="submit" disabled={saving}>
               {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add machine'}
@@ -131,6 +179,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
               <tr>
                 <th>Machine</th>
                 <th>Type</th>
+                <th>Address</th>
                 <th />
               </tr>
             </thead>
@@ -143,6 +192,7 @@ export function PlantManager({ machines, onChange, currentMachineId }: Props) {
                     <small>{m.name}</small>
                   </td>
                   <td>{m.type}</td>
+                  <td className="mono">{m.ip ? `${m.ip}:${m.port}` : <span className="prov">Not set</span>}</td>
                   <td style={{ display: 'flex', gap: 8 }}>
                     <button className="ghost" onClick={() => startEdit(m)}>
                       Edit

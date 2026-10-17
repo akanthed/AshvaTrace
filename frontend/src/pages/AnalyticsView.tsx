@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import type { ShiftSummary, ThresholdViolation, CostImpact } from '../types';
+import type { ShiftSummary, ThresholdViolation, CostImpact, TrackRecord } from '../types';
+import { ReportCard } from '../components/ReportCard';
 import { api } from '../services/api';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { formatTimestamp } from '../utils/time';
@@ -13,17 +14,20 @@ export function AnalyticsView() {
   const [violations, setViolations] = useState<ThresholdViolation[]>([]);
   const [energy, setEnergy] = useState<any>(null);
   const [impact, setImpact] = useState<CostImpact | null>(null);
+  const [record, setRecord] = useState<TrackRecord | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, v, e, c] = await Promise.all([
+        const [s, v, e, c, r] = await Promise.all([
           api.getShiftSummary(),
           api.getThresholdViolations(),
           api.getEnergyReport(),
           api.getCostImpact(),
+          api.getTrackRecord(),
         ]);
+        setRecord(r);
         setSummary(s);
         setViolations(v);
         setEnergy(e);
@@ -41,51 +45,64 @@ export function AnalyticsView() {
 
   return (
     <div className="view">
+      {record && (
+        <section className="panel">
+          <header>
+            <h3>AI report card — graded by code</h3>
+            <div className="sp" />
+            <span className="prov">How often the AI's advice held up when the machine was re-checked</span>
+          </header>
+          <div className="body">
+            <ReportCard record={record} />
+          </div>
+        </section>
+      )}
+
       {impact && (
         <section className="panel">
           <header>
-            <h3>Cost impact — this shift</h3>
+            <h3>What problems cost — this shift</h3>
             <div className="sp" />
             <span className="prov">
-              {impact.incidentsResolved}/{impact.incidentsTotal} incidents resolved
+              {impact.incidentsResolved}/{impact.incidentsTotal} problems solved
             </span>
           </header>
           <div className="body" style={{ display: 'grid', gap: 16 }}>
             <div className="counts">
               <div className="count">
-                <small>Downtime (out-of-band)</small>
+                <small>Time off-normal</small>
                 <b style={{ color: 'var(--crit)' }}>{impact.downtimeMinutes} min</b>
               </div>
               <div className="count">
-                <small>Downtime cost</small>
+                <small>Cost of that time</small>
                 <b style={{ color: 'var(--crit)' }}>{fmtUsd(impact.downtimeCost)}</b>
               </div>
               <div className="count">
-                <small>Energy waste</small>
+                <small>Extra energy used</small>
                 <b style={{ color: 'var(--warn)' }}>{impact.energyWasteKwh} kWh</b>
               </div>
               <div className="count">
-                <small>MTTR (AshvaTrace)</small>
+                <small>Avg time to resolve (AshvaTrace)</small>
                 <b style={{ color: 'var(--ok)' }}>{impact.mttrMinutes} min</b>
               </div>
               <div className="count">
-                <small>MTTR (industry avg)</small>
+                <small>Avg time to resolve (industry)</small>
                 <b>{impact.benchmarkMttrMinutes} min</b>
               </div>
               <div className="count">
-                <small>Est. savings this shift</small>
+                <small>Estimated savings</small>
                 <b style={{ color: 'var(--ok)' }}>{fmtUsd(impact.totalSavings)}</b>
               </div>
               <div className="count">
-                <small>AI cost this shift</small>
+                <small>AI running cost</small>
                 <b>${impact.aiCostUsd.toFixed(2)}</b>
               </div>
             </div>
             <p className="prov" style={{ margin: 0 }}>
-              MTTR {impact.mttrReductionPct >= 0 ? 'reduced' : 'vs'} {impact.mttrReductionPct}% vs industry
-              benchmark. Downtime cost at ${impact.assumptions.downtimeCostPerHour.toLocaleString()}/hr
-              ({impact.assumptions.source}); benchmark MTTR from {impact.assumptions.benchmarkMttrSource}.
-              Simulated data — figures are illustrative.
+              Problems are solved {Math.abs(impact.mttrReductionPct)}% {impact.mttrReductionPct >= 0 ? 'faster' : 'slower'} than the industry average
+              Downtime is valued at ${impact.assumptions.downtimeCostPerHour.toLocaleString()}/hr
+              ({impact.assumptions.source}); industry benchmark from {impact.assumptions.benchmarkMttrSource}.
+              This is demo data, so the figures are examples.
             </p>
           </div>
         </section>
@@ -103,11 +120,11 @@ export function AnalyticsView() {
           {summary && (
             <div className="counts">
               <div className="count">
-                <small>Total warnings</small>
+                <small>Readings in 'Watch' range</small>
                 <b style={{ color: 'var(--warn)' }}>{summary.totalWarnings}</b>
               </div>
               <div className="count">
-                <small>Total criticals</small>
+                <small>Readings in 'Action required' range</small>
                 <b style={{ color: 'var(--crit)' }}>{summary.totalCriticals}</b>
               </div>
               <div className="count">
@@ -122,9 +139,9 @@ export function AnalyticsView() {
                 <thead>
                   <tr>
                     <th>Machine</th>
-                    <th className="num">Avg deviation</th>
-                    <th className="num">Warnings</th>
-                    <th className="num">Criticals</th>
+                    <th className="num">Avg vs normal</th>
+                    <th className="num">Watch</th>
+                    <th className="num">Action required</th>
                     <th>Status</th>
                   </tr>
                 </thead>
@@ -139,7 +156,7 @@ export function AnalyticsView() {
                         <span
                           className={`pill ${m.status === 'critical' ? 'crit' : m.status === 'warning' ? 'warn' : 'ok'}`}
                         >
-                          {m.status}
+                          {m.status === 'critical' ? 'Action required' : m.status === 'warning' ? 'Watch' : 'Normal'}
                         </span>
                       </td>
                     </tr>
@@ -153,13 +170,13 @@ export function AnalyticsView() {
 
       <section className="panel">
         <header>
-          <h3>Threshold violations</h3>
+          <h3>Times a limit was crossed</h3>
           <div className="sp" />
           <span className="prov">{violations.length} total</span>
         </header>
         <div className="body">
           {violations.length === 0 ? (
-            <p className="prov">No threshold violations this shift.</p>
+            <p className="prov">No limits were crossed this shift.</p>
           ) : (
             <div className="tbl-wrap">
               <table>
@@ -167,7 +184,7 @@ export function AnalyticsView() {
                   <tr>
                     <th>Machine</th>
                     <th>Time</th>
-                    <th className="num">Deviation</th>
+                    <th className="num">Vs normal</th>
                     <th>Severity</th>
                   </tr>
                 </thead>
@@ -181,7 +198,7 @@ export function AnalyticsView() {
                         {v.devPct}%
                       </td>
                       <td>
-                        <span className={`pill ${v.severity === 'critical' ? 'crit' : 'warn'}`}>{v.severity}</span>
+                        <span className={`pill ${v.severity === 'critical' ? 'crit' : 'warn'}`}>{v.severity === 'critical' ? 'Action required' : 'Watch'}</span>
                       </td>
                     </tr>
                   ))}
@@ -194,7 +211,7 @@ export function AnalyticsView() {
 
       <section className="panel">
         <header>
-          <h3>Energy report</h3>
+          <h3>Energy used</h3>
         </header>
         <div className="body">
           {energy && (
@@ -203,10 +220,10 @@ export function AnalyticsView() {
                 <thead>
                   <tr>
                     <th>Machine</th>
-                    <th className="num">Actual (kWh)</th>
-                    <th className="num">Expected (kWh)</th>
-                    <th className="num">Excess (kWh)</th>
-                    <th className="num">Excess %</th>
+                    <th className="num">Used (kWh)</th>
+                    <th className="num">Normal (kWh)</th>
+                    <th className="num">Extra (kWh)</th>
+                    <th className="num">Extra %</th>
                   </tr>
                 </thead>
                 <tbody>

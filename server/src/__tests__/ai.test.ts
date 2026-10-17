@@ -245,7 +245,9 @@ describe('utils/ai', () => {
         { powerDevPct: 1.5, vibrationMmS: 2.5, cycleTimeSec: 95 }
       );
       expect(result.passed).toBe(true);
-      expect(result.actualOutcome).toContain('successful');
+      expect(result.actualOutcome).toContain('Fix worked');
+      expect(result.checks).toHaveLength(3);
+      expect(result.checks!.every((c) => c.passed)).toBe(true);
       expect(result.metrics).toEqual({
         powerDevPct: 1.5,
         vibrationMmS: 2.5,
@@ -259,7 +261,21 @@ describe('utils/ai', () => {
         { powerDevPct: 4.0, vibrationMmS: 2.5, cycleTimeSec: 95 }
       );
       expect(result.passed).toBe(false);
-      expect(result.actualOutcome).toContain('Further action needed');
+      expect(result.actualOutcome).toContain('Fix did not hold');
+      expect(result.actualOutcome).toContain('power draw');
+    });
+
+    it('scores the AI prediction against the measured deviation', () => {
+      const held = verify(
+        { action: 'x', predictedOutcome: 'y', confidence: 70, expectedPowerDevPct: 2 },
+        { powerDevPct: 1.5, vibrationMmS: 2.5, cycleTimeSec: 95 }
+      );
+      expect(held.predictionHeld).toBe(true);
+      const missed = verify(
+        { action: 'x', predictedOutcome: 'y', confidence: 70, expectedPowerDevPct: 1 },
+        { powerDevPct: 5, vibrationMmS: 2.5, cycleTimeSec: 95 }
+      );
+      expect(missed.predictionHeld).toBe(false);
     });
 
     it('fails when vibration exceeds 4.5 mm/s', () => {

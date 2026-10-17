@@ -89,7 +89,7 @@ describe('MonitoringView', () => {
       </MemoryRouter>
     );
     await waitFor(() => {
-      const labels = screen.getAllByText('Upper alarm');
+      const labels = screen.getAllByText('Action required');
       expect(labels.length).toBeGreaterThanOrEqual(1);
     });
   });

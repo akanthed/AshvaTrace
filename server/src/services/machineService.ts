@@ -1,14 +1,60 @@
 import { generateShiftData, generateMachineSeries, ShiftData, MachineInfo, Sample, Thresholds } from '../utils/synthetic';
+import { isIP } from 'net';
 import { upsertMachine, deleteMachineRow, queryMachines, queryDeletedMachineIds, MachineRow } from './bigqueryService';
 
 // In-memory store for the current shift
 let shiftData: ShiftData | null = null;
 let machineInfos: MachineInfo[] = [];
 
+// Demo machines get a plausible gateway address (OPC UA's standard port 4840) so the Plant
+// page shows what a real setup looks like. The app never connects to any address.
+const DEFAULT_ADDRESSES: Record<string, { ip: string; port: number }> = {
+  'CNC-01': { ip: '192.168.10.11', port: 4840 },
+  'CNC-02': { ip: '192.168.10.12', port: 4840 },
+  'CNC-03': { ip: '192.168.10.13', port: 4840 },
+  'LATHE-01': { ip: '192.168.10.21', port: 4840 },
+  'GRD-01': { ip: '192.168.10.31', port: 4840 },
+  'PRS-01': { ip: '192.168.20.11', port: 4840 },
+};
+
+// Check an address typed by a person. Returns an error message in plain words, or null if OK.
+// Only a syntax check: the server never opens a connection to the address.
+export function validateAddress(ip: unknown, port: unknown): string | null {
+  if (typeof ip !== 'string' || ip.trim() === '') return 'Enter the IP address of the machine';
+  if (isIP(ip.trim()) === 0) return 'That is not a valid IP address (example: 192.168.10.15)';
+  const p = typeof port === 'string' ? Number(port) : port;
+  if (typeof p !== 'number' || !Number.isInteger(p) || p < 1 || p > 65535) {
+    return 'Port must be a whole number from 1 to 65535 (example: 4840)';
+  }
+  return null;
+}
+
+// Another machine already using this ip:port, if any.
+export function findAddressOwner(ip: string, port: number, exceptId?: string): MachineInfo | null {
+  return machineInfos.find((m) => m.id !== exceptId && m.ip === ip.trim() && m.port === port) || null;
+}
+
+// Each machine's original demo condition, so a demo reset can put it back.
+const originalTargets = new Map<string, number>();
+
 export function initShiftData() {
   const result = generateShiftData();
   shiftData = result.data;
   machineInfos = result.machines;
+  originalTargets.clear();
+  for (const m of shiftData.machines) {
+    originalTargets.set(m.id, m.targetDevPct ?? 0);
+    const addr = DEFAULT_ADDRESSES[m.id];
+    if (addr) {
+      m.ip = addr.ip;
+      m.port = addr.port;
+      const summary = machineInfos.find((x) => x.id === m.id);
+      if (summary) {
+        summary.ip = addr.ip;
+        summary.port = addr.port;
+      }
+    }
+  }
   return result;
 }
 
@@ -73,11 +119,15 @@ export async function loadPersistedMachines(): Promise<void> {
       existing.name = row.name;
       existing.type = row.type;
       existing.thresholds = thresholds;
+      if (row.ip_address) existing.ip = row.ip_address;
+      if (row.port) existing.port = row.port;
       const summary = machineInfos.find((m) => m.id === row.id);
       if (summary) {
         summary.name = row.name;
         summary.type = row.type;
         summary.thresholds = thresholds;
+        if (row.ip_address) summary.ip = row.ip_address;
+        if (row.port) summary.port = row.port;
       }
     } else {
       const series = generateMachineSeries(def);
@@ -87,6 +137,8 @@ export async function loadPersistedMachines(): Promise<void> {
         type: row.type,
         thresholds,
         series,
+        ip: row.ip_address ?? undefined,
+        port: row.port ?? undefined,
       };
       shiftData.machines.push(machine);
       machineInfos.push({ ...machine, series: [] });
@@ -206,12 +258,39 @@ export function tickLiveSample(id: string): { machineId: string; sample: Sample;
   return { machineId: id, sample, spiked };
 }
 
+// Demo-only: model what happens on the simulated machine once an engineer
+// applies a fix. The machine's target condition drops to healthy and a burst of
+// samples lets the readings settle, so the next status read reflects the
+// recovery. Only called when the fix addressed the right cause; a wrong fix
+// leaves the machine untouched.
+export function applySimulatedFix(id: string): boolean {
+  if (!shiftData) initShiftData();
+  const machine = shiftData?.machines.find((m: MachineInfo) => m.id === id);
+  if (!machine || machine.series.length === 0) return false;
+  machine.targetDevPct = 0;
+  for (let i = 0; i < 30; i++) tickLiveSample(id);
+  return true;
+}
+
+// Demo reset: put every machine back into its original condition (including ones a
+// simulated fix had healed) and let the readings settle there.
+export function resetMachineConditions(): void {
+  if (!shiftData) initShiftData();
+  if (!shiftData) return;
+  for (const m of shiftData.machines) {
+    if (originalTargets.has(m.id)) m.targetDevPct = originalTargets.get(m.id);
+    if (m.series.length > 0) for (let i = 0; i < 30; i++) tickLiveSample(m.id);
+  }
+}
+
 export interface CreateMachineInput {
   id: string;
   name: string;
   type: string;
   thresholds: Thresholds;
   basePower?: number;
+  ip?: string;
+  port?: number;
 }
 
 export function createMachine(input: CreateMachineInput): MachineInfo | { error: string } {
@@ -236,6 +315,8 @@ export function createMachine(input: CreateMachineInput): MachineInfo | { error:
     type: input.type,
     thresholds: input.thresholds,
     series,
+    ip: input.ip?.trim(),
+    port: input.port,
   };
 
   shiftData.machines.push(machine);
@@ -252,6 +333,8 @@ export function createMachine(input: CreateMachineInput): MachineInfo | { error:
     lowerWarning: input.thresholds.lowerWarning,
     lowerAlarm: input.thresholds.lowerAlarm,
     basePower: input.basePower,
+    ip: input.ip?.trim(),
+    port: input.port,
   });
 
   return summary;
@@ -261,6 +344,8 @@ export interface UpdateMachineInput {
   name?: string;
   type?: string;
   thresholds?: Thresholds;
+  ip?: string;
+  port?: number;
 }
 
 export function updateMachine(id: string, input: UpdateMachineInput): MachineInfo | null {
@@ -283,6 +368,10 @@ export function updateMachine(id: string, input: UpdateMachineInput): MachineInf
     machine.thresholds = input.thresholds;
     summary.thresholds = input.thresholds;
   }
+  if (input.ip !== undefined && input.port !== undefined) {
+    machine.ip = summary.ip = input.ip.trim();
+    machine.port = summary.port = input.port;
+  }
 
   // Persist the updated definition to BigQuery (best-effort, non-blocking)
   upsertMachine({
@@ -293,6 +382,8 @@ export function updateMachine(id: string, input: UpdateMachineInput): MachineInf
     critical: machine.thresholds.upperAlarm,
     lowerWarning: machine.thresholds.lowerWarning,
     lowerAlarm: machine.thresholds.lowerAlarm,
+    ip: machine.ip,
+    port: machine.port,
   });
 
   return summary;

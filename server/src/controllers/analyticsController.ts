@@ -6,6 +6,7 @@ import {
   getMachineComparison as fetchComparison,
   getCostImpact as fetchCostImpact,
 } from '../services/analyticsService';
+import { getTrackRecord as fetchTrackRecord } from '../services/trackRecordService';
 
 export async function getShiftSummary(_req: Request, res: Response) {
   const summary = fetchSummary();
@@ -31,4 +32,9 @@ export async function getMachineComparison(_req: Request, res: Response) {
 export async function getCostImpact(_req: Request, res: Response) {
   const impact = fetchCostImpact();
   res.json(impact);
+}
+
+export async function getTrackRecord(req: Request, res: Response) {
+  const { machineId } = req.query;
+  res.json(fetchTrackRecord(machineId as string | undefined));
 }

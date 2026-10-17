@@ -83,33 +83,26 @@ describe('MachineView', () => {
 
   it('renders the machine name', async () => {
     renderMachineView();
-    expect(await screen.findByText('CNC Mill 03')).toBeInTheDocument();
+    expect((await screen.findAllByText('CNC Mill 03')).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('shows critical badge for CNC-03', async () => {
+    it('shows "Action required" for critical machines', async () => {
     renderMachineView();
     await waitFor(() => {
-      expect(screen.getByText('critical')).toBeInTheDocument();
-    });
-  });
-
-  it('shows "Action required" for critical machines', async () => {
-    renderMachineView();
-    await waitFor(() => {
-      expect(screen.getByText('Action required')).toBeInTheDocument();
+      expect(screen.getAllByText('Action required').length).toBeGreaterThanOrEqual(1);
     });
   });
 
   it('displays the Monitor group tabs by default, hiding Investigate & Verify tabs', async () => {
     renderMachineView();
     await waitFor(() => {
-      expect(screen.getByText('Monitoring')).toBeInTheDocument();
+      expect(screen.getAllByText('Monitoring').length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
-      expect(screen.getByText('Threshold')).toBeInTheDocument();
+      expect(screen.getByText('Limits')).toBeInTheDocument();
       expect(screen.getByText('Trends')).toBeInTheDocument();
-      expect(screen.getByText('Plant')).toBeInTheDocument();
+      expect(screen.getByText('Machines')).toBeInTheDocument();
       expect(screen.queryByText('Investigate')).not.toBeInTheDocument();
-      expect(screen.queryByText('Actions')).not.toBeInTheDocument();
+      expect(screen.queryByText('Fix')).not.toBeInTheDocument();
       expect(screen.queryByText('Verify')).not.toBeInTheDocument();
       expect(screen.queryByText('Audit')).not.toBeInTheDocument();
     });
@@ -119,14 +112,14 @@ describe('MachineView', () => {
     renderMachineView('/machine/CNC-03?tab=investigate');
     await waitFor(() => {
       expect(screen.getAllByText('Investigate').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText('Actions')).toBeInTheDocument();
+      expect(screen.getByText('Fix')).toBeInTheDocument();
       expect(screen.getByText('Verify')).toBeInTheDocument();
       expect(screen.getByText('Audit')).toBeInTheDocument();
       expect(screen.queryByText('Monitoring')).not.toBeInTheDocument();
       expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
-      expect(screen.queryByText('Threshold')).not.toBeInTheDocument();
+      expect(screen.queryByText('Limits')).not.toBeInTheDocument();
       expect(screen.queryByText('Trends')).not.toBeInTheDocument();
-      expect(screen.queryByText('Plant')).not.toBeInTheDocument();
+      expect(screen.queryByText('Machines')).not.toBeInTheDocument();
     });
   });
 
@@ -141,15 +134,7 @@ describe('MachineView', () => {
   it('shows Power Trends when navigated to the Trends tab', async () => {
     renderMachineView('/machine/CNC-03?tab=trends');
     await waitFor(() => {
-      expect(screen.getByText('Power Trends')).toBeInTheDocument();
-    });
-  });
-
-  it('has a back button', async () => {
-    renderMachineView();
-    await waitFor(() => {
-      const backBtn = screen.getByText('← Back');
-      expect(backBtn).toBeInTheDocument();
+      expect(screen.getByText('Power over time')).toBeInTheDocument();
     });
   });
 });

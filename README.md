@@ -2,7 +2,7 @@
 
 **Detect the signal. Investigate the cause. Verify the improvement.**
 
-AshvaTrace is an evidence-based investigation assistant for factory machines. It spots sustained gaps between a machine's actual and expected power draw, pulls in vibration, cycle-time and event history, and has Gemini investigate like an engineer would: calling tools to fetch real sensor data, citing SOPs and past fixes, and proposing ranked, competing hypotheses. A human approves the fix. **Deterministic code, not AI, decides whether it worked.**
+AshvaTrace is an evidence-based investigation assistant for factory machines. It spots sustained gaps between a machine's actual and expected power draw, pulls in vibration, cycle-time and event history, and has Gemini investigate like an engineer would: calling tools to fetch real sensor data, citing SOPs and past fixes, and proposing ranked, competing hypotheses. A human approves the fix. **Deterministic code, not AI, decides whether it worked, and keeps score on the AI afterwards.**
 
 > Built for **AI Builder Cup 2026** · Theme: Manufacturing, *Intelligent Operations & Industrial Efficiency* · Team Ashvamedh
 
@@ -44,24 +44,27 @@ flowchart LR
     L --> M
 ```
 
-Three places where plain code, not a model, has the last word:
+Four places where plain code, not a model, has the last word:
 
 | Guardrail | What it does | Where |
 |---|---|---|
 | **Grounding check** | Every figure, SOP id and past-incident id a hypothesis quotes is checked against what the investigation actually saw. Invented numbers are flagged, confidence is cut, mostly-unsupported hypotheses are dropped. | [server/src/utils/grounding.ts](server/src/utils/grounding.ts) |
 | **Critic can only subtract** | A second, independent Gemini call reviews the hypotheses against the real numbers and SOP text. It may lower confidence. It cannot raise it or rewrite evidence. | `critiqueHypotheses()` in [server/src/utils/ai.ts](server/src/utils/ai.ts) |
-| **Verification is not AI** | After the action, `verify()` passes only if power deviation is under 3%, vibration under 4.5 mm/s and cycle time under 120 s, on real post-action readings. | `verify()` in [server/src/utils/ai.ts](server/src/utils/ai.ts) |
+| **Verification is not AI** | After the action, `verify()` passes only if power deviation is under 3%, vibration under 4.5 mm/s and cycle time under 120 s, on real post-action readings, shown before and after. | `verify()` in [server/src/utils/ai.ts](server/src/utils/ai.ts) |
+| **The AI is graded by code** | Before the fix, Gemini commits to the power deviation it expects. After verification, code scores the prediction (within 3 points) and builds a report card: fixes that passed, predictions that held, and stated confidence against real pass rate. | `verify()` and [server/src/services/trackRecordService.ts](server/src/services/trackRecordService.ts) |
 
 Chat is guarded the same way: on-topic enforcement is a forced `onTopic` boolean in the model's structured output, checked by code, so a jailbroken reply still cannot escape the fixed refusal text.
 
 ## Gen AI features
 
-- **Agentic investigation.** Gemini runs a real tool-calling loop: `get_power_window`, `get_vibration_stats`, `get_cycle_time_trend`, `inspect_tool`. The full tool trace is shown to the engineer.
+- **Agentic investigation.** Code pulls `get_power_window`, `get_vibration_stats` and `get_cycle_time_trend` in parallel up front (this removed a model round-trip and brought "Ask AI" to about 10 seconds). Gemini keeps those same tools and can call them again for a different time window. The trace is shown in plain language with the raw data one click away, and progress streams to the UI over SSE.
 - **Retrieval grounding.** SOP-101/102/103 are selected by deterministic rules from live signals (not by the model), plus resolved incidents on the same machine: "last time this happened the fix was X and it worked."
 - **Self-critique.** Independent reviewer pass, described above.
-- **Vision AI.** Gemini assesses a tool-wear image (condition, wear level, recommendation).
-- **Outcome simulation.** Gemini predicts, in plain language, what a proposed intervention should do.
+- **Vision AI.** A separate "Cutting tool check" on the machine page: Gemini assesses a tool-wear image (condition, wear level, recommendation). It sits outside the investigation loop to keep that fast.
+- **Outcome simulation.** Gemini predicts, in plain language, what a proposed fix should do, and commits to a number that code later checks.
 - **Scoped assistant.** Chat over live app state only.
+- **AI report card.** Analytics shows how often the AI's advice held up when re-checked, with a calibration table ("when the AI said 70%+, fixes passed X% of the time"). Each incident also shows the AI's track record on that machine.
+- **Cost and savings, by code.** An open incident shows the electricity the machine is wasting right now. After a PASS, code works out the kW, dollars a day and CO₂ the fix saves, with assumptions on screen.
 - **Measured AI cost.** Real token usage from Vertex's `usageMetadata`, converted to dollars and accumulated per incident. Shown in the incident view and Analytics. Not an estimate.
 
 ## Architecture
@@ -122,8 +125,9 @@ sequenceDiagram
     S-->>UI: Status badge, open and closed incidents
     E->>UI: Open incident, click Ask AI
     UI->>S: POST /api/incidents/:id/investigate
-    loop agent tool calls
-        S->>G: prompt + SOPs + past incidents
+    S->>S: pull power, vibration, cycle-time data in parallel (code)
+    S->>G: prompt + sensor data + SOPs + past incidents
+    opt Gemini wants another time window
         G-->>S: call get_power_window / get_vibration_stats / ...
         S-->>G: real sensor data
     end
@@ -132,15 +136,17 @@ sequenceDiagram
     S-->>UI: ranked hypotheses, evidence for/against, trace, cost
     E->>UI: Select hypothesis, propose intervention
     UI->>S: POST /api/incidents/:id/simulate
-    S->>G: predict outcome
-    S-->>UI: predicted outcome
-    E->>UI: Verify
+    S->>G: predict outcome + a number to be held to
+    S-->>UI: predicted outcome, baseline readings
+    E->>UI: Check the fix
     UI->>S: POST /api/incidents/:id/verify
-    S->>S: verify() on live metrics (no AI)
-    S-->>UI: PASS or FAIL + audit entry
+    S->>S: verify() on live metrics (no AI), score the prediction, work out savings
+    S-->>UI: PASS or FAIL, before/after table, savings, audit entry
 ```
 
-**Screens:** Launch · Monitoring (plant table) · Machine (Monitoring, Dashboard, Threshold, Trends) · Machine Incidents (open and closed history, with cause, fix tried and result) · Investigate · Incident (Investigate, Interventions, Verify, Audit) · Analytics (shift summary, energy, cost impact, machine comparison) · Settings (live check of AI, database and alert connections).
+**Plant page:** machines are added by the IP address and port of their data source (for example an OPC UA gateway on 4840). Addresses are validated, must be unique, and are saved with the machine in BigQuery. The demo never opens a connection to them: readings stay simulated, and the page says so.
+
+**Screens:** Launch · Monitoring (plant table) · Machine (Monitoring, Dashboard, Limits, Trends) · Machine Incidents (open and solved history, with cause, fix tried and result) · Open problems · Incident (Investigate, Fix, Verify, Audit, with a progress bar and a live "costing you right now" banner) · Analytics (AI report card, cost impact, shift summary, energy) · Settings (live check of AI, database and alert connections).
 
 ## Tech stack
 
@@ -241,15 +247,19 @@ No GCP credentials? The app still starts with in-memory data and a working deter
 
 1. **Monitoring**: find a machine marked *Action required* (CNC-01, CNC-02, CNC-03, LATHE-01, PRS-01 are live).
 2. Click it, open an **open incident**.
-3. **Investigate** tab, click **Ask AI**. Watch the tool trace, ranked hypotheses, evidence for and against, grounding status and SOP references.
-4. Select a hypothesis, then **Go to Interventions**: propose a fix and read Gemini's predicted outcome.
-5. **Verify**: deterministic PASS or FAIL against live metrics.
+3. **Investigate** tab, click **Ask AI** (about 10 seconds). Read the ranked causes, evidence for and against, the quick check and suggested fix for each, and the "code checked" badge. Open "How the AI got here" to see the data it read.
+4. Select a cause, then **Next: choose a fix**. The AI's suggested fix is pre-filled. Preview it and read Gemini's prediction.
+5. **Verify**: press *Check the machine now*. Code returns PASS or FAIL with a before-and-after table, scores the AI's prediction, and shows the energy, cost and CO₂ the fix saves. In the demo the simulated machine only recovers if you picked the AI's top-ranked cause; pick another and it fails.
 6. **Audit**: every step, timestamped.
+7. **Analytics**: the AI report card.
+
+**Judges and testers:** no login is needed. Four machines start with an open problem (CNC-02, CNC-03, LATHE-01, PRS-01) and CNC-01 is healthy for comparison. After a problem has been fixed, press **Restore sample problems** (Open problems page or Settings) to close what is open, reset the machines and create fresh problems. Closed incidents stay as history.
 
 ### 6. Test
 
 ```bash
-cd server   && npm run build && npm test     # Vitest, AI + BigQuery mocked
+cd server   && npm run build && npm test     # Vitest (89 tests), AI + BigQuery mocked
+cd server   && npm run eval                   # replays 4 known faults through real Gemini; scores top-1/top-3 and figure grounding
 cd frontend && npm run build && npm test     # Vitest
 cd frontend && npm run test:e2e              # Playwright (optional)
 ```
@@ -296,12 +306,12 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 
 | Area | Endpoints |
 |---|---|
-| System | `GET /health`, `GET /api/system/status` |
-| Machines | `GET/POST /api/machines`, `GET/PUT/DELETE /api/machines/:id`, `GET /api/machines/:id/status`, `/series`, `POST /api/machines/:id/inspect-tool` |
+| System | `GET /health`, `GET /api/system/status`, `POST /api/system/reset-demo` |
+| Machines | `GET/POST /api/machines` (a new machine needs `ip` and `port`; invalid or duplicate addresses are rejected), `GET/PUT/DELETE /api/machines/:id`, `GET /api/machines/:id/status`, `/series`, `POST /api/machines/:id/inspect-tool` |
 | Incidents | `GET /api/incidents`, `/api/incidents/machine?machineId=`, `/api/incidents/:id`, `/:id/audit`, `/:id/similar` |
 | Investigation loop | `POST /api/incidents/:id/investigate`, `/simulate`, `/verify`; `PATCH /api/incidents/:id/status` |
 | Alerts | `GET /api/alerts`, `/api/alerts/machine/:id`, `POST /api/alerts/:id/acknowledge` |
-| Analytics | `GET /api/analytics/shift-summary`, `/threshold-violations`, `/energy-report`, `/machine-comparison`, `/cost-impact` |
+| Analytics | `GET /api/analytics/shift-summary`, `/threshold-violations`, `/energy-report`, `/machine-comparison`, `/cost-impact`, `/track-record?machineId=` |
 | Assistant | `POST /api/chat/ask` |
 | Dashboards | `GET/PUT /api/dashboard-layout/:machineId` |
 | Realtime | `GET /api/sse/events` |
@@ -311,6 +321,8 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 - Synthetic demonstration only. No commands are ever sent to equipment.
 - AI output is hypotheses, not proof of causation, and is labelled that way.
 - Hypotheses appear only when the engineer asks. They are never passed off as automatic findings.
+- 13 resolved past incidents are seeded (two fixes that did not work, on purpose) so the AI has history to cite and the report card has real variety.
+- In the demo, the simulated machine recovers after a fix only if the engineer picked the AI's top-ranked cause. The Verify tab says so on screen.
 - Costs and energy figures are estimates from displayed assumptions. AI cost is measured, not estimated.
 - Credentials never reach the browser. Key files and `.env` files are git-ignored.
 
@@ -318,7 +330,7 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 
 - Horizontal scaling is unsafe until incident and alert creation moves to an atomic BigQuery check-and-create. Cloud Run is pinned to a single instance for this reason.
 - Incidents for a machine deleted before cascade-delete existed can be orphaned.
-- Three older assertions in `frontend/src/test/MachineView.test.tsx` are stale.
+- The seeded incident history is all passes, so the report card looks better than real use would. It becomes meaningful as real fixes are graded.
 - Verification uses fixed global criteria (3% / 4.5 mm/s / 120 s); per-machine criteria are future work.
 
 ## Roadmap

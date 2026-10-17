@@ -80,32 +80,32 @@ function useGroups({ hasOpenIncident, latestIncidentId }: CriticalContext): Arra
   const monitorTiles: Tile[] = [
     {
       title: 'Monitoring',
-      desc: 'All machines — current power, deviation and status',
+      desc: 'See every machine: how much power it uses, how far that is from normal, and whether it is OK',
       icon: ICONS.plant,
       go: '/monitoring',
       flagged: hasOpenIncident,
     },
     {
       title: 'Dashboard',
-      desc: "Pick a machine and view its own dashboard of live tiles",
+      desc: "Pick a machine and see its live numbers on a photo or drawing of it",
       icon: ICONS.stack,
       go: '/monitoring?tab=dashboard',
     },
     {
-      title: 'Threshold',
-      desc: "Pick a machine and set the warning and critical limits that decide its status",
+      title: 'Limits',
+      desc: "Pick a machine and set when it counts as 'Watch' or 'Action required'",
       icon: ICONS.gauge,
       go: '/monitoring?tab=threshold',
     },
     {
       title: 'Trends',
-      desc: 'Pick a machine and view its power over time, actual vs. expected',
+      desc: 'Pick a machine and see its power use over time against what is normal',
       icon: ICONS.chart,
       go: '/monitoring?tab=trends',
     },
     {
-      title: 'Plant',
-      desc: 'Manage machines — add, rename, remove',
+      title: 'Machines',
+      desc: 'Add, rename or remove machines',
       icon: ICONS.plant,
       go: '/monitoring?tab=plant',
     },
@@ -120,29 +120,29 @@ function useGroups({ hasOpenIncident, latestIncidentId }: CriticalContext): Arra
     const incidentOrMachine = (tab: string) => `/incident/${latestIncidentId}?tab=${tab}`;
     groups.push([
       'investigate',
-      'Investigate & verify',
+      'Find the cause & fix it',
       [
         {
-          title: 'Investigation',
-          desc: 'See every open incident across the plant, then pick one to review the AI\'s likely causes',
+          title: 'Find the cause',
+          desc: 'See every open problem in the plant and ask the AI what is causing it',
           icon: ICONS.ai,
           go: '/investigate',
         },
         {
-          title: 'Interventions',
-          desc: 'Pick a fix, see what it should do, then approve it',
+          title: 'Fix',
+          desc: 'Choose a repair and see what the AI expects it to do',
           icon: ICONS.wrench,
           go: incidentOrMachine('actions'),
         },
         {
-          title: 'Verification',
-          desc: 'After the fix, confirm it actually worked — checked by code, not AI',
+          title: 'Check the fix',
+          desc: 'After the repair, find out if it really worked. Plain code decides, not AI',
           icon: ICONS.check,
           go: incidentOrMachine('verify'),
         },
         {
           title: 'Audit trail',
-          desc: 'A timestamped record of every step taken on this incident',
+          desc: 'A time-stamped list of everything done on this problem',
           icon: ICONS.log,
           go: incidentOrMachine('audit'),
         },
@@ -219,11 +219,11 @@ export default function LaunchView() {
           </svg>
           <b>AshvaTrace</b>
           <span>
-            Detect the signal.
+            Spot the problem.
             <br />
-            Investigate the cause.
+            Find the cause.
             <br />
-            Verify the improvement.
+            Prove the fix worked.
           </span>
         </div>
         <div>
@@ -235,7 +235,7 @@ export default function LaunchView() {
                   <button key={t.title} className="tile" onClick={() => navigate(t.go)}>
                     <b>{t.title}</b>
                     <span>{t.desc}</span>
-                    {t.flagged && <i className="flag">1 action required</i>}
+                    {t.flagged && <i className="flag">Needs you now</i>}
                     {t.icon}
                   </button>
                 ))}

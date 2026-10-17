@@ -8,18 +8,24 @@ function FigureCheck({ g }: { g: Grounding }) {
     g.figuresChecked === 0
       ? 'No sensor figures quoted — treat with caution'
       : g.status === 'verified'
-        ? `All ${g.figuresChecked} figures match the sensor data`
-        : `${g.figuresVerified} of ${g.figuresChecked} figures match the sensor data`;
+        ? `Code checked: all ${g.figuresChecked} numbers match the sensor data`
+        : `Code checked: ${g.figuresVerified} of ${g.figuresChecked} numbers match the sensor data`;
   const problems = [
     ...g.unsupportedFigures.map((f) => `${f} not found in the data`),
     ...g.badReferences.map((r) => `${r} is not a known reference`),
   ];
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
+    <div className="figcheck">
       <span className={`pill ${cls}`}>{label}</span>
-      {problems.length > 0 && <span style={{ color: 'var(--muted)' }}>Could not confirm: {problems.join('; ')}</span>}
+      {problems.length > 0 && <span className="figcheck-note">Could not confirm: {problems.join('; ')}</span>}
     </div>
   );
+}
+
+function confidenceTone(c: number): string {
+  if (c >= 70) return 'high';
+  if (c >= 40) return 'mid';
+  return 'low';
 }
 
 interface Props {
@@ -34,44 +40,72 @@ export function HypothesisList({ hypotheses, selectedId, onSelect }: Props) {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      {hypotheses.map((h, i) => (
-        <article
-          key={h.id}
-          className="hyp"
-          onClick={() => onSelect?.(h.id)}
-          style={{
-            cursor: onSelect ? 'pointer' : undefined,
-            outline: selectedId === h.id ? '2px solid var(--accent)' : undefined,
-          }}
-        >
-          <h4>
-            <span className="rank">#{i + 1}</span>
-            {h.title}
-            <span className="pill info">{h.confidence}% likely</span>
-            {h.sopRef && <span className="pill">Follows {h.sopRef}</span>}
-          </h4>
-          <div className="fa">
-            <div>
-              <span style={{ color: 'var(--ok)' }}>Why this fits</span>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {h.evidenceFor.map((e, idx) => (
-                  <li key={idx}>{e}</li>
-                ))}
-              </ul>
+    <div className="hyp-list">
+      {hypotheses.map((h, i) => {
+        const selected = selectedId === h.id;
+        return (
+          <article
+            key={h.id}
+            className={`hyp ${selected ? 'selected' : ''} ${i === 0 ? 'top' : ''}`}
+            onClick={() => onSelect?.(h.id)}
+            style={{ cursor: onSelect ? 'pointer' : undefined }}
+          >
+            <h4>
+              <span className="rank">{i === 0 ? 'MOST LIKELY' : `#${i + 1}`}</span>
+              <span className="hyp-title">{h.title}</span>
+              {h.sopRef && <span className="pill">Follows {h.sopRef}</span>}
+            </h4>
+
+            <div className="conf">
+              <div className="conf-bar" aria-hidden="true">
+                <div className={`conf-fill ${confidenceTone(h.confidence)}`} style={{ width: `${Math.min(100, Math.max(0, h.confidence))}%` }} />
+              </div>
+              <span className="conf-label">{h.confidence}% likely</span>
             </div>
-            <div>
-              <span style={{ color: 'var(--warn)' }}>What argues against it</span>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {h.evidenceAgainst.map((e, idx) => (
-                  <li key={idx}>{e}</li>
-                ))}
-              </ul>
+
+            <div className="fa">
+              <div>
+                <span style={{ color: 'var(--ok)' }}>Why this fits</span>
+                <ul>
+                  {h.evidenceFor.map((e, idx) => (
+                    <li key={idx}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <span style={{ color: 'var(--warn)' }}>What argues against it</span>
+                <ul>
+                  {h.evidenceAgainst.map((e, idx) => (
+                    <li key={idx}>{e}</li>
+                  ))}
+                </ul>
+              </div>
             </div>
-          </div>
-          {h.grounding && <FigureCheck g={h.grounding} />}
-        </article>
-      ))}
+
+            {(h.nextCheck || h.suggestedFix) && (
+              <div className="hyp-next">
+                {h.nextCheck && (
+                  <p>
+                    <b>Quick check:</b> {h.nextCheck}
+                  </p>
+                )}
+                {h.suggestedFix && (
+                  <p>
+                    <b>Suggested fix:</b> {h.suggestedFix}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="hyp-foot">
+              {h.grounding && <FigureCheck g={h.grounding} />}
+              {onSelect && (
+                <span className={`hyp-pick ${selected ? 'on' : ''}`}>{selected ? '✓ Selected as the cause' : 'Click to select this cause'}</span>
+              )}
+            </div>
+          </article>
+        );
+      })}
     </div>
   );
 }

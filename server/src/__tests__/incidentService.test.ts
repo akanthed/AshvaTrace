@@ -163,11 +163,12 @@ describe('incidentService', () => {
     });
     expect(result.status).toBe('action_taken');
     expect(result.selectedHypothesis).toBe('HYP-1');
-    expect(result.simulation).toEqual({
+    expect(result.simulation).toMatchObject({
       action: 'Replace spindle bearing',
       predictedOutcome: 'Deviation should reduce to within 2% of expected',
       confidence: 70,
     });
+    expect(result.simulation?.baseline).toBeDefined();
     expect(result.auditLog.some((e) => e.action === 'action_simulated')).toBe(true);
   });
 

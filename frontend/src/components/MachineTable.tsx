@@ -19,8 +19,8 @@ function statusToSt(status: string): 'ok' | 'warn' | 'crit' {
 }
 
 function statusLabel(status: string): string {
-  if (status === 'critical') return 'Upper alarm';
-  if (status === 'warning') return 'Upper warning';
+  if (status === 'critical') return 'Action required';
+  if (status === 'warning') return 'Watch';
   return 'Normal';
 }
 
@@ -55,10 +55,10 @@ export default function MachineTable({ machines, statuses }: MachineTableProps) 
       <table className="mtable">
         <thead>
           <tr>
-            <th>Source</th>
-            <th className="num">Value</th>
+            <th>Machine</th>
+            <th className="num">Power now</th>
             <th>Unit</th>
-            <th className="num">Deviation</th>
+            <th className="num">Vs normal</th>
             <th>Status</th>
             <th>Last update</th>
           </tr>

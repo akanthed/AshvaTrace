@@ -63,6 +63,8 @@ export async function initBigQuery(): Promise<void> {
         { name: 'lower_warning', type: 'FLOAT64', mode: 'NULLABLE' },
         { name: 'lower_alarm', type: 'FLOAT64', mode: 'NULLABLE' },
         { name: 'base_power', type: 'FLOAT64', mode: 'NULLABLE' },
+        { name: 'ip_address', type: 'STRING', mode: 'NULLABLE' },
+        { name: 'port', type: 'INT64', mode: 'NULLABLE' },
         { name: 'deleted', type: 'BOOLEAN', mode: 'NULLABLE' },
         { name: 'updated_at', type: 'TIMESTAMP', mode: 'REQUIRED' },
       ],
@@ -145,6 +147,12 @@ export async function initBigQuery(): Promise<void> {
       .catch(() => {});
     await client()
       .query(`ALTER TABLE \`${datasetName()}.${MACHINES_TABLE}\` ADD COLUMN IF NOT EXISTS lower_alarm FLOAT64`)
+      .catch(() => {});
+    await client()
+      .query(`ALTER TABLE \`${datasetName()}.${MACHINES_TABLE}\` ADD COLUMN IF NOT EXISTS ip_address STRING`)
+      .catch(() => {});
+    await client()
+      .query(`ALTER TABLE \`${datasetName()}.${MACHINES_TABLE}\` ADD COLUMN IF NOT EXISTS port INT64`)
       .catch(() => {});
 
     console.log('[BigQuery] Dataset and tables ready');
@@ -332,6 +340,8 @@ export interface MachineRow {
   lower_warning: number | null;
   lower_alarm: number | null;
   base_power: number | null;
+  ip_address: string | null;
+  port: number | null;
   deleted: boolean;
   updated_at: string;
 }
@@ -352,6 +362,8 @@ export async function upsertMachine(m: {
   lowerWarning: number;
   lowerAlarm: number;
   basePower?: number;
+  ip?: string;
+  port?: number;
 }): Promise<void> {
   try {
     const table = client().dataset(datasetName()).table(MACHINES_TABLE);
@@ -364,6 +376,8 @@ export async function upsertMachine(m: {
       lower_warning: m.lowerWarning,
       lower_alarm: m.lowerAlarm,
       base_power: m.basePower ?? null,
+      ip_address: m.ip ?? null,
+      port: m.port ?? null,
       updated_at: new Date().toISOString(),
     });
   } catch (err) {
@@ -398,7 +412,7 @@ export async function deleteMachineRow(id: string): Promise<void> {
 export async function queryMachines(): Promise<MachineRow[]> {
   try {
     const [rows] = await client().query(
-      `SELECT id, name, type, warning, critical, lower_warning, lower_alarm, base_power, deleted, updated_at
+      `SELECT id, name, type, warning, critical, lower_warning, lower_alarm, base_power, ip_address, port, deleted, updated_at
        FROM (
          SELECT *, ROW_NUMBER() OVER (PARTITION BY id ORDER BY updated_at DESC) AS rn
          FROM \`${datasetName()}.${MACHINES_TABLE}\`

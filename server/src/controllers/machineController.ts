@@ -7,6 +7,8 @@ import {
   createMachine,
   updateMachine,
   deleteMachine,
+  validateAddress,
+  findAddressOwner,
 } from '../services/machineService';
 import { inspectToolImage } from '../utils/ai';
 import { deleteIncidentsForMachine } from '../services/incidentService';
@@ -51,9 +53,20 @@ const DEFAULT_WARNING = 5;
 const DEFAULT_CRITICAL = 10;
 
 export async function postMachine(req: Request, res: Response) {
-  const { id, name, type, basePower } = req.body;
+  const { id, name, type, basePower, ip, port } = req.body;
   if (!id || !name || !type) {
     res.status(400).json({ error: 'id, name and type are required' });
+    return;
+  }
+  const addressError = validateAddress(ip, port);
+  if (addressError) {
+    res.status(400).json({ error: addressError });
+    return;
+  }
+  const portNum = Number(port);
+  const owner = findAddressOwner(ip, portNum);
+  if (owner) {
+    res.status(409).json({ error: `${owner.name} already uses ${ip.trim()}:${portNum}` });
     return;
   }
 
@@ -65,7 +78,7 @@ export async function postMachine(req: Request, res: Response) {
     lowerAlarm: -DEFAULT_CRITICAL,
   };
 
-  const result = createMachine({ id, name, type, thresholds, basePower });
+  const result = createMachine({ id, name, type, thresholds, basePower, ip: ip.trim(), port: portNum });
   if ('error' in result) {
     res.status(409).json(result);
     return;
@@ -74,8 +87,22 @@ export async function postMachine(req: Request, res: Response) {
 }
 
 export async function putMachine(req: Request, res: Response) {
-  const { name, type, thresholds } = req.body;
-  const machine = updateMachine(req.params.id, { name, type, thresholds });
+  const { name, type, thresholds, ip, port } = req.body;
+  // Address is optional on update, but if either half is sent both must be valid.
+  const hasAddress = ip !== undefined || port !== undefined;
+  if (hasAddress) {
+    const addressError = validateAddress(ip, port);
+    if (addressError) {
+      res.status(400).json({ error: addressError });
+      return;
+    }
+    const owner = findAddressOwner(ip, Number(port), req.params.id);
+    if (owner) {
+      res.status(409).json({ error: `${owner.name} already uses ${ip.trim()}:${Number(port)}` });
+      return;
+    }
+  }
+  const machine = updateMachine(req.params.id, { name, type, thresholds, ...(hasAddress ? { ip: ip.trim(), port: Number(port) } : {}) });
   if (!machine) {
     res.status(404).json({ error: 'Machine not found' });
     return;

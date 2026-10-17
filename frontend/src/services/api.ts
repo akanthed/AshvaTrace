@@ -1,4 +1,4 @@
-import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact, VisionInspection, PastIncidentSummary } from '../types';
+import type { Machine, MachineStatus, MachineSeries, Incident, Alert, ShiftSummary, ThresholdViolation, SystemStatus, DashboardLayout, CostImpact, VisionInspection, PastIncidentSummary, TrackRecord } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -22,9 +22,9 @@ export const api = {
   getMachineSeries: (id: string, from?: number, to?: number) =>
     fetchJson<MachineSeries>(`/machines/${id}/series?from=${from || 0}${to ? `&to=${to}` : ''}`),
   getMachineStatus: (id: string) => fetchJson<MachineStatus>(`/machines/${id}/status`),
-  createMachine: (body: { id: string; name: string; type: string; basePower?: number }) =>
+  createMachine: (body: { id: string; name: string; type: string; ip: string; port: number; basePower?: number }) =>
     fetchJson<Machine>('/machines', { method: 'POST', body: JSON.stringify(body) }),
-  updateMachine: (id: string, body: Partial<Pick<Machine, 'name' | 'type' | 'thresholds'>>) =>
+  updateMachine: (id: string, body: Partial<Pick<Machine, 'name' | 'type' | 'thresholds' | 'ip' | 'port'>>) =>
     fetchJson<Machine>(`/machines/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   deleteMachine: (id: string) => fetchJson<void>(`/machines/${id}`, { method: 'DELETE' }),
 
@@ -50,6 +50,8 @@ export const api = {
   getEnergyReport: () => fetchJson<any>('/analytics/energy-report'),
   getMachineComparison: () => fetchJson<any[]>('/analytics/machine-comparison'),
   getCostImpact: () => fetchJson<CostImpact>('/analytics/cost-impact'),
+  getTrackRecord: (machineId?: string) =>
+    fetchJson<TrackRecord>(`/analytics/track-record${machineId ? `?machineId=${encodeURIComponent(machineId)}` : ''}`),
 
   // Alerts
   getAlerts: () => fetchJson<Alert[]>('/alerts'),
@@ -66,6 +68,7 @@ export const api = {
 
   // System
   getSystemStatus: () => fetchJson<SystemStatus>('/system/status'),
+  resetDemo: () => fetchJson<{ closed: number; created: number }>('/system/reset-demo', { method: 'POST' }),
 
   // Dashboard layout (blueprint/photo background + tile position)
   getDashboardLayout: (machineId: string) => fetchJson<DashboardLayout>(`/dashboard-layout/${machineId}`),
@@ -77,22 +80,36 @@ export const api = {
 };
 
 // SSE connection for real-time alerts
-export function connectSSE(onEvent: (event: any) => void): () => void {
-  const url = `${BASE_URL}/sse/events`;
-  const source = new EventSource(url);
+// One shared EventSource for the whole page. Browsers allow only ~6 open
+// connections per host on HTTP/1.1, so one stream per component starves
+// ordinary fetches (pages hang on "Loading…"). Listeners are ref-counted;
+// the stream closes when the last one unsubscribes.
+const sseListeners = new Set<(event: any) => void>();
+let sseSource: EventSource | null = null;
 
-  source.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data);
-      onEvent(data);
-    } catch {
-      // Ignore parse errors
+export function connectSSE(onEvent: (event: any) => void): () => void {
+  sseListeners.add(onEvent);
+
+  if (!sseSource) {
+    const source = new EventSource(`${BASE_URL}/sse/events`);
+    source.onmessage = (e) => {
+      let data: any;
+      try {
+        data = JSON.parse(e.data);
+      } catch {
+        return; // Ignore parse errors
+      }
+      sseListeners.forEach((fn) => fn(data));
+    };
+    // EventSource will auto-reconnect on error
+    sseSource = source;
+  }
+
+  return () => {
+    sseListeners.delete(onEvent);
+    if (sseListeners.size === 0 && sseSource) {
+      sseSource.close();
+      sseSource = null;
     }
   };
-
-  source.onerror = () => {
-    // EventSource will auto-reconnect
-  };
-
-  return () => source.close();
 }

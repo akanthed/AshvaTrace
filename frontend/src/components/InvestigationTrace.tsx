@@ -5,10 +5,53 @@ interface Props {
   trace: InvestigationTraceStep[];
 }
 
-// Shows the agentic investigation step by step: each tool the AI called,
-// what it got back, and its final reasoning. Collapsed by default so the
-// hypothesis list stays the primary content — the trace is the "show your
-// work" evidence that the AI queried real data before hypothesizing.
+const TOOL_LABELS: Record<string, string> = {
+  get_power_window: 'Read recent power readings',
+  get_vibration_stats: 'Checked vibration levels',
+  get_cycle_time_trend: 'Checked time per part',
+  inspect_tool: 'Inspected the cutting tool (camera)',
+};
+
+function num(v: unknown, digits = 1): string | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits).replace(/\.0+$/, '') : null;
+}
+
+// Turn a raw tool result into one plain sentence. Falls back to a short
+// generic line — raw JSON stays available behind "show raw data".
+function summarize(tool: string | undefined, r: any): string {
+  if (!r || typeof r !== 'object') return 'Data received.';
+  if (r.error) return `Could not read data: ${r.error}`;
+  try {
+    if (tool === 'get_vibration_stats') {
+      const cur = num(r.currentMmS, 2);
+      const avg = num(r.avgMmS, 2);
+      const max = num(r.maxMmS, 2);
+      const parts = [cur && `now ${cur} mm/s`, avg && `average ${avg}`, max && `peak ${max}`].filter(Boolean);
+      if (parts.length) return `Vibration: ${parts.join(', ')}${r.trendingUp ? ' — and rising' : ''}.`;
+    }
+    if (tool === 'get_cycle_time_trend') {
+      const cur = num(r.currentSec);
+      const base = num(r.baselineSec);
+      const parts = [cur && `now ${cur} s`, base && `earlier ${base} s`].filter(Boolean);
+      if (parts.length) return `Time per part: ${parts.join(', ')}${r.slowingDown ? ' — machine is slowing down' : ''}.`;
+    }
+    if (tool === 'inspect_tool') {
+      const wear = num(r.wearPct, 0);
+      if (r.condition) return `Tool is ${r.condition}${wear ? ` (about ${wear}% worn)` : ''}.${r.recommendation ? ` ${r.recommendation}` : ''}`;
+    }
+    if (tool === 'get_power_window' && r.windowSamples) {
+      const first = num(r.firstDevPct);
+      const last = num(r.lastDevPct);
+      return `Power vs normal over ${r.windowSamples} readings: ${first}% → ${last}% (${r.trend}).`;
+    }
+  } catch {
+    // fall through
+  }
+  return 'Data received.';
+}
+
+// Shows how the AI worked: which readings it pulled before answering, in plain
+// words, with the raw numbers one click away. Collapsed by default.
 export function InvestigationTrace({ trace }: Props) {
   const [open, setOpen] = useState(false);
   if (trace.length === 0) return null;
@@ -16,56 +59,44 @@ export function InvestigationTrace({ trace }: Props) {
   const toolCalls = trace.filter((t) => t.type === 'tool_call').length;
 
   return (
-    <div className="trace" style={{ marginBottom: 12 }}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        style={{
-          background: 'none',
-          border: '1px solid var(--line)',
-          borderRadius: 6,
-          color: 'var(--fg)',
-          padding: '6px 10px',
-          cursor: 'pointer',
-          fontSize: 13,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
-        <span style={{ color: 'var(--accent)' }}>⚙</span>
-        AI investigation trace — {toolCalls} tool call{toolCalls === 1 ? '' : 's'}
-        <span style={{ marginLeft: 'auto', opacity: 0.6 }}>{open ? '▲' : '▼'}</span>
+    <div className="trace">
+      <button type="button" className="trace-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="trace-ico">⚙</span>
+        <span>
+          How the AI got here
+          <small>
+            {' '}
+            — it pulled {toolCalls} set{toolCalls === 1 ? '' : 's'} of live readings before answering
+          </small>
+        </span>
+        <span className="trace-chev">{open ? '▲' : '▼'}</span>
       </button>
 
       {open && (
-        <ol style={{ margin: '10px 0 0', paddingLeft: 20, display: 'grid', gap: 8, fontSize: 13 }}>
+        <ol className="trace-steps">
           {trace.map((step, i) => {
             if (step.type === 'tool_call') {
               return (
-                <li key={i}>
-                  <b style={{ color: 'var(--accent)' }}>→ {step.tool}</b>{' '}
-                  <code style={{ opacity: 0.8 }}>{JSON.stringify(step.args || {})}</code>
+                <li key={i} className="t-call">
+                  <b>{TOOL_LABELS[step.tool ?? ''] ?? step.tool}</b>
                 </li>
               );
             }
             if (step.type === 'tool_result') {
               return (
-                <li key={i} style={{ marginLeft: -8 }}>
-                  <span style={{ opacity: 0.6 }}>{step.tool} returned:</span>{' '}
+                <li key={i} className="t-result">
+                  <span>{summarize(step.tool, step.result)}</span>
                   <details>
-                    <summary style={{ cursor: 'pointer', opacity: 0.8 }}>view result</summary>
-                    <pre style={{ margin: '6px 0', padding: 8, background: 'var(--bg2, rgba(255,255,255,0.04))', borderRadius: 6, overflowX: 'auto', fontSize: 12 }}>
-                      {JSON.stringify(step.result, null, 2)}
-                    </pre>
+                    <summary>Show raw data</summary>
+                    <pre>{JSON.stringify(step.result, null, 2)}</pre>
                   </details>
                 </li>
               );
             }
             return (
-              <li key={i}>
-                <b>AI reasoning:</b>
-                <p style={{ margin: '4px 0 0', opacity: 0.85, whiteSpace: 'pre-wrap' }}>{step.text}</p>
+              <li key={i} className="t-reason">
+                <b>AI's conclusion, before the code checked it</b>
+                <p>Draft answer written; every number in it is then checked by code against the readings above.</p>
               </li>
             );
           })}

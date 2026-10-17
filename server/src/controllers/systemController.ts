@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { resetDemo } from '../services/incidentService';
+import { broadcastEvent } from '../routes/sseRoutes';
 
 export async function getSystemStatus(_req: Request, res: Response) {
   res.json({
@@ -17,4 +19,11 @@ export async function getSystemStatus(_req: Request, res: Response) {
     },
     simulatedData: true,
   });
+}
+
+// Restore the sample problems so the demo can be run again from the start.
+export async function resetDemoData(_req: Request, res: Response) {
+  const result = resetDemo();
+  broadcastEvent({ type: 'demoReset' });
+  res.json(result);
 }
