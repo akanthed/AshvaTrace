@@ -30,15 +30,15 @@ AshvaTrace closes the whole loop in one place, and keeps AI honest while doing i
 flowchart TB
     A[Threshold breach<br/>deterministic] --> B[Incident opened]
     B --> C[Engineer clicks Ask AI]
-    C --> D["Gemini agent<br/>calls tools, reads SOPs<br/>and past incidents"]
+    C --> D["Gemini agent<br/>sensor tools run first, then<br/>reads SOPs and past incidents"]
     D --> E[Independent critic<br/>can only lower confidence]
     E --> F[Grounding check<br/>deterministic: every quoted<br/>number must exist in the data]
     F --> G[Engineer picks hypothesis<br/>and intervention]
     G --> H["Gemini predicts outcome<br/>and commits to a number"]
     H --> I[Real post-action metrics]
     I --> J{"verify()<br/>deterministic"}
-    J -->|PASS| K["Incident resolved<br/>savings in kW, $/day, CO2"]
-    J -->|FAIL| L[Hypothesis unconfirmed,<br/>escalate]
+    J -->|PASS| K["Fix verified<br/>savings in kW, $/day, CO2"]
+    J -->|FAIL| L[Incident stays open,<br/>try another fix]
     K --> M[(Audit trail +<br/>institutional memory)]
     L --> M
     M --> N["AI report card<br/>code grades the AI"]
@@ -79,13 +79,14 @@ flowchart TB
         direction TB
         API[Express API + static frontend]
         SIM[Live simulator<br/>3 s tick per machine<br/>machines added by IP + port]
-        THR[Threshold checker<br/>5 s]
+        THR[Threshold checker<br/>every 3-5 s]
         INC[Incident service]
-        AI[AI layer: ai.ts · grounding.ts<br/>investigationTools.ts · chatService.ts<br/>sensor tools run in parallel by code]
+        AI[AI layer: ai.ts · grounding.ts<br/>investigationTools.ts · sopService.ts<br/>chatService.ts<br/>sensor tools run in parallel by code]
         VER["verify() - pure function"]
         TRK["AI report card<br/>trackRecordService.ts"]
         SSE[SSE broadcaster]
         API --- INC
+        API -->|chat, tool check| AI
         SIM --> THR --> INC
         INC --> AI
         INC --> VER
@@ -103,6 +104,7 @@ flowchart TB
     SSE -->|Server-Sent Events| UI
     AI -->|generateContent + tool calls| VTX
     INC <--> BQ
+    AI -->|SOP lookup| BQ
     THR -.-> PS
 ```
 
@@ -129,6 +131,7 @@ sequenceDiagram
     UI->>S: POST /api/incidents/:id/investigate
     S->>S: pull power, vibration, cycle-time data in parallel (code)
     S->>G: prompt + sensor data + SOPs + past incidents
+    S-->>UI: progress messages over SSE
     opt Gemini wants another time window
         G-->>S: call get_power_window / get_vibration_stats / ...
         S-->>G: real sensor data
@@ -168,7 +171,6 @@ sequenceDiagram
 .
 ├── Dockerfile                  # frontend + backend -> one Cloud Run image
 ├── cloudbuild.yaml
-├── TESTING_GUIDE.md            # QA walkthrough of every screen and flow
 ├── frontend/
 │   ├── src/pages/              # Monitoring, Machine, Incident, Analytics, Settings...
 │   ├── src/components/         # HypothesisList, InvestigationTrace, AuditLog, ...
@@ -336,10 +338,6 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 ## Roadmap
 
 Real OPC UA / MQTT ingestion in place of the simulator, per-machine verification criteria, SOP upload and embedding retrieval, CMMS work-order hand-off, multi-instance safe state.
-
-## Documentation
-
-- [TESTING_GUIDE.md](TESTING_GUIDE.md): plain-language QA walkthrough of every screen
 
 ## Hackathon
 
