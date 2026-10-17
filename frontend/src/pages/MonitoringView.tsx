@@ -232,7 +232,7 @@ export default function MonitoringView({ machineId }: Props) {
 
       <div className="panel">
         <header>
-          <h3>Cutting tool check (camera AI)</h3>
+          <h3>Cutting tool check (image AI, simulated)</h3>
           <div className="sp" />
           <button className="primary" onClick={runInspection} disabled={inspecting}>
             {inspecting ? 'Checking…' : 'Check the tool'}

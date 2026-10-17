@@ -9,7 +9,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_power_window: 'Read recent power readings',
   get_vibration_stats: 'Checked vibration levels',
   get_cycle_time_trend: 'Checked time per part',
-  inspect_tool: 'Inspected the cutting tool (camera)',
+  inspect_tool: 'Inspected the cutting tool (simulated image)',
 };
 
 function num(v: unknown, digits = 1): string | null {

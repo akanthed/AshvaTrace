@@ -91,7 +91,7 @@ export default function TopBar() {
             </svg>
           </button>
           {profileOpen && (
-            <div className="notif-panel" style={{ minWidth: 180 }}>
+            <div className="notif-panel" style={{ left: 0, right: 'auto', width: 220 }}>
               <header>Account</header>
               <ul style={{ display: 'grid', gap: 4 }}>
                 <li style={{ cursor: 'default', padding: '6px 8px' }}>
