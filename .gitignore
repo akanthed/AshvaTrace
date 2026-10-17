@@ -5,3 +5,13 @@ ashvatrace-42607ad03e01.json
 server/dist/
 server/public/
 .impeccable/hook.cache.json
+
+# Stale pre-build planning docs superseded by CLAUDE.md; kept locally for
+# history, not tracked going forward.
+TASKS.md
+docs/superpowers/
+
+# Unused Vite scaffolding / dead assets, not referenced anywhere in src/.
+frontend/src/assets/react.svg
+frontend/src/assets/vite.svg
+frontend/src/assets/hero.png
