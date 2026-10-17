@@ -12,15 +12,26 @@ AshvaTrace is an evidence-based investigation assistant for factory machines. It
 | **Hosting** | Google Cloud Run (`us-central1`) |
 | **AI** | Gemini on Vertex AI (server-side, Application Default Credentials) |
 | **Persistence** | BigQuery |
-| **Demo video** | _link added at submission_ |
 
 > **Simulated data.** There is no real PLC, CNC or machine network connection. Machine telemetry is seeded, synthetic data with a live random-walk feed on top. The UI says so on purpose. Gemini calls, BigQuery storage and Cloud Run hosting are all real.
+
+### Try it in 60 seconds
+
+No login. Open the live demo, then:
+
+1. Click a machine marked **Action required**, then its open incident.
+2. Press **Ask AI** (about 10 seconds): ranked causes, evidence for and against, every quoted number checked by code.
+3. Pick a cause, take the suggested fix, press **Check the machine now**: code, not AI, returns PASS or FAIL.
+
+Full walkthrough: [Try the demo flow](#5-try-the-demo-flow).
 
 ---
 
 ## Why it matters
 
 A machine drawing 6% more power than it should is not an alarm. It is a symptom. Worn bearing, dull tool, bad coolant mix, sensor drift: each costs energy, quality and uptime, and each is fixed differently. On the floor, finding the cause means jumping between trend screens, paper SOPs and tribal memory, and nobody checks afterwards whether the fix actually worked.
+
+The waste is real money. In the demo, a lathe drawing 4.7 kW more than it should is costing about $8.99 a day in electricity (16 running hours, $0.12/kWh, stated on screen), roughly $3,300 a year for one machine, before counting scrap or downtime. The app shows this live on every open incident and computes the saving after each verified fix.
 
 AshvaTrace closes the whole loop in one place, and keeps AI honest while doing it.
 
@@ -66,6 +77,19 @@ Chat is guarded the same way: on-topic enforcement is a forced `onTopic` boolean
 - **AI report card.** Analytics shows how often the AI's advice held up when re-checked, with a calibration table ("when the AI said 70%+, fixes passed X% of the time"). Each incident also shows the AI's track record on that machine.
 - **Cost and savings, by code.** An open incident shows the electricity the machine is wasting right now. After a PASS, code works out the kW, dollars a day and CO₂ the fix saves, with assumptions on screen.
 - **Measured AI cost.** Real token usage from Vertex's `usageMetadata`, converted to dollars and accumulated per incident. Shown in the incident view and Analytics. Not an estimate.
+
+## Does the AI hold up?
+
+`npm run eval` (in `server/`) replays 4 scripted faults with known root causes (tool wear, spindle bearing and others) through the real Gemini pipeline and scores the result with plain code, no AI judge. Output is written to `server/eval-results.json`.
+
+| Measure | Result |
+|---|---|
+| Right cause in the top 3 | 100% in every run |
+| Right cause ranked first | 50% to 100% across runs (4 of 4 in the latest) |
+| Quoted figures that match the sensor data | 100% |
+| Cost of a full 4-fault run | about $0.002 |
+
+Runs vary because the model does. The range above is the honest one, not the best run.
 
 ## Architecture
 
@@ -165,7 +189,8 @@ sequenceDiagram
 | Hosting | Cloud Run, Cloud Build / Docker |
 | Tests | Vitest (server + frontend), Playwright (e2e) |
 
-## Repository layout
+<details>
+<summary><b>Repository layout</b></summary>
 
 ```
 .
@@ -187,6 +212,8 @@ sequenceDiagram
         ├── utils/synthetic.ts  # seeded data generator
         └── __tests__/          # Vitest suite (AI layer and BigQuery mocked)
 ```
+
+</details>
 
 ## Getting started
 
@@ -212,7 +239,8 @@ cp server/.env.example server/.env      # Windows PowerShell: Copy-Item server\.
 
 Edit `server/.env`. See [Configuration](#configuration) for every variable.
 
-### 3. Google Cloud setup (for Gemini + BigQuery)
+<details>
+<summary><b>3. Google Cloud setup (for Gemini + BigQuery)</b></summary>
 
 ```bash
 gcloud auth login
@@ -226,6 +254,8 @@ gcloud services enable aiplatform.googleapis.com bigquery.googleapis.com \
 Set `GCP_PROJECT_ID` in `server/.env`. The BigQuery dataset and tables are created automatically on first start, and the synthetic SOPs are seeded for you.
 
 Your identity (locally) or the Cloud Run service account (deployed) needs: `roles/aiplatform.user`, `roles/bigquery.dataEditor`, `roles/bigquery.jobUser`, and optionally `roles/pubsub.publisher`.
+
+</details>
 
 ### 4. Run locally
 
@@ -257,7 +287,8 @@ No GCP credentials? The app still starts with in-memory data and a working deter
 
 **Judges and testers:** no login is needed. Four machines start with an open problem (CNC-02, CNC-03, LATHE-01, PRS-01) and CNC-01 is healthy for comparison. After a problem has been fixed, press **Restore sample problems** (Open problems page or Settings) to close what is open, reset the machines and create fresh problems. Closed incidents stay as history.
 
-### 6. Test
+<details>
+<summary><b>6. Test</b></summary>
 
 ```bash
 cd server   && npm run build && npm test     # Vitest (89 tests), AI + BigQuery mocked
@@ -266,7 +297,10 @@ cd frontend && npm run build && npm test     # Vitest
 cd frontend && npm run test:e2e              # Playwright (optional)
 ```
 
-### 7. Deploy to Cloud Run
+</details>
+
+<details>
+<summary><b>7. Deploy to Cloud Run</b></summary>
 
 From the repo root:
 
@@ -287,7 +321,10 @@ curl https://<your-service-url>/health
 curl https://<your-service-url>/api/system/status
 ```
 
-## Configuration
+</details>
+
+<details>
+<summary><b>Configuration</b></summary>
 
 All variables are read by the server. Template: [server/.env.example](server/.env.example).
 
@@ -304,7 +341,11 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 | `PUBSUB_ALERT_TOPIC` | none | Publish alerts to this topic when set |
 | `LIVE_AUTO_INVESTIGATE` | `false` | `true` makes Gemini investigate every new critical incident automatically |
 
-## API
+</details>
+
+<details>
+<summary><b>API</b></summary>
+
 
 | Area | Endpoints |
 |---|---|
@@ -317,6 +358,8 @@ All variables are read by the server. Template: [server/.env.example](server/.en
 | Assistant | `POST /api/chat/ask` |
 | Dashboards | `GET/PUT /api/dashboard-layout/:machineId` |
 | Realtime | `GET /api/sse/events` |
+
+</details>
 
 ## Safety and honesty
 
