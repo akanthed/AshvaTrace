@@ -18,15 +18,28 @@ const ROWS: Array<[FieldKey, string]> = [
 ];
 
 export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
-  const [form, setForm] = useState<Thresholds>(thresholds);
+  // Raw text per field, so partial input like "-" or "" can be typed
+  // without being coerced to a number mid-edit.
+  const [text, setText] = useState<Record<FieldKey, string>>(() => ({
+    upperAlarm: String(thresholds.upperAlarm),
+    upperWarning: String(thresholds.upperWarning),
+    lowerWarning: String(thresholds.lowerWarning),
+    lowerAlarm: String(thresholds.lowerAlarm),
+  }));
+  const form = Object.fromEntries(ROWS.map(([k]) => [k, Number(text[k])])) as Thresholds;
+  const valid = ROWS.every(([k]) => text[k].trim() !== '' && Number.isFinite(form[k]));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const dirty = ROWS.some(([key]) => form[key] !== thresholds[key]);
+  const dirty = valid && ROWS.some(([key]) => form[key] !== thresholds[key]);
 
   const handleSave = async () => {
     setError(null);
+    if (!valid) {
+      setError('Enter a number for every limit');
+      return;
+    }
     if (form.upperAlarm < form.upperWarning) {
       setError("The 'Action required' high limit must be at least as high as the 'Watch' high limit");
       return;
@@ -74,8 +87,8 @@ export function ThresholdPanel({ machineId, thresholds, onSaved }: Props) {
                   <td>
                     <input
                       type="number"
-                      value={form[key]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: Number(e.target.value) }))}
+                      value={text[key]}
+                      onChange={(e) => setText((t) => ({ ...t, [key]: e.target.value }))}
                     />
                     <span style={{ marginLeft: 6, color: 'var(--muted)', fontSize: 12 }}>%</span>
                   </td>
