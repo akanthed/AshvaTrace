@@ -56,6 +56,9 @@ function isTabKey(value: string | null): value is TabKey {
   return !!value && (TAB_KEYS as string[]).includes(value);
 }
 
+// Live samples are appended forever; cap what the page keeps in memory.
+const MAX_SERIES_POINTS = 600;
+
 const DASHBOARD_TILE_KEYS = ['power', 'deviation'];
 const DASHBOARD_TILE_LABELS: Record<string, string> = {
   power: 'Power now (kW)',
@@ -141,7 +144,7 @@ export function MachineView() {
         if (event.status) setStatus(event.status);
         if (event.sample) {
           setSeries((prev) =>
-            prev ? { ...prev, series: [...prev.series, event.sample] } : prev
+            prev ? { ...prev, series: [...prev.series, event.sample].slice(-MAX_SERIES_POINTS) } : prev
           );
         }
       }

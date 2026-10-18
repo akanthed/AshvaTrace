@@ -21,23 +21,27 @@ interface Props {
   criticalThreshold?: number;
 }
 
+// Keep the chart responsive: live samples are appended forever, so only the
+// most recent points are drawn.
+const MAX_POINTS = 600;
+
 export function TrendsChart({ series, warningThreshold, criticalThreshold }: Props) {
   const data = useMemo(
     () =>
-      series.map((s) => ({
+      series.slice(-MAX_POINTS).map((s) => ({
         time: s.timestamp,
         actual: s.actual,
         expected: s.expected,
-        deviation: ((s.actual - s.expected) / s.expected) * 100,
+        deviation: s.expected ? ((s.actual - s.expected) / s.expected) * 100 : 0,
       })),
     [series]
   );
 
-  // Brush gives drag-to-zoom on the time axis: dragging its handles narrows
-  // the main chart to that range, the "Reset zoom" button below snaps it
-  // back out to the full series.
-  const [brushRange, setBrushRange] = useState<{ startIndex?: number; endIndex?: number }>({});
-  const isZoomed = brushRange.startIndex !== undefined || brushRange.endIndex !== undefined;
+  // Brush gives drag-to-zoom on the time axis. It is left uncontrolled (a
+  // controlled brush that sets state in onChange re-renders the chart on
+  // every drag tick and can loop); "Reset zoom" remounts it to snap back out.
+  const [brushKey, setBrushKey] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
 
   return (
     <div className="chart-container" style={{ width: '100%', height: '100%', minHeight: 280, position: 'relative' }}>
@@ -45,7 +49,10 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
         <button
           className="tab"
           style={{ position: 'absolute', top: 4, right: 4, zIndex: 1 }}
-          onClick={() => setBrushRange({ startIndex: 0, endIndex: data.length - 1 })}
+          onClick={() => {
+            setBrushKey((k) => k + 1);
+            setIsZoomed(false);
+          }}
         >
           Reset zoom
         </button>
@@ -83,6 +90,7 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
             stroke="#f39200"
             strokeWidth={2}
             dot={false}
+            isAnimationActive={false}
             name="Actual"
           />
           <Line
@@ -92,9 +100,10 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
             strokeWidth={1.5}
             strokeDasharray="5 5"
             dot={false}
+            isAnimationActive={false}
             name="Expected"
           />
-          {warningThreshold && (
+          {warningThreshold !== undefined && (
             <ReferenceLine
               y={warningThreshold}
               stroke="#d29922"
@@ -102,7 +111,7 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
               label={{ value: 'Warning', fill: '#d29922', fontSize: 10, position: 'right' }}
             />
           )}
-          {criticalThreshold && (
+          {criticalThreshold !== undefined && (
             <ReferenceLine
               y={criticalThreshold}
               stroke="#f85149"
@@ -117,9 +126,14 @@ export function TrendsChart({ series, warningThreshold, criticalThreshold }: Pro
             fill="#161b22"
             travellerWidth={8}
             tickFormatter={formatTimestamp}
-            startIndex={brushRange.startIndex}
-            endIndex={brushRange.endIndex}
-            onChange={(range) => setBrushRange(range)}
+            key={brushKey}
+            onChange={(range) =>
+              setIsZoomed(
+                range.startIndex !== undefined &&
+                  range.endIndex !== undefined &&
+                  (range.startIndex > 0 || range.endIndex < data.length - 1)
+              )
+            }
           />
         </LineChart>
       </ResponsiveContainer>
